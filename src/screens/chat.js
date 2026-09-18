@@ -8,7 +8,7 @@ import { blank, clearScreen, line, section } from '../ui/out.js';
 import { createLiveMarkdown } from '../ui/live.js';
 import { createSpinner } from '../ui/spinner.js';
 import { selectModel } from '../ui/select.js';
-import { wrapStyled } from '../util/ansi.js';
+import { wrapStyled, padEnd, repeat, truncateStyled } from '../util/ansi.js';
 import { bold, dim, faint, glyphs, mint, neon, neonSoft, warn } from '../ui/theme.js';
 import { TokenExpiredError } from '../api.js';
 import { savePrefs } from '../config.js';
@@ -196,19 +196,31 @@ export function printFarewell(state) {
 
 /**
  * OpenAds card: additive-only render after the model's reply. The ad is
- * always labeled, and a failed/missing ad renders nothing at all.
+ * always labeled, framed in its own box, and a failed/missing ad renders
+ * nothing at all. Any open composer is erased first and redrawn after so
+ * the card never lands inside the input box.
  */
-function printAdCard(ad, scroller) {
+function printAdCard(ad, { scroller, prompt } = {}) {
   if (!ad) return;
-  const rows = [
-    INDENT + faint(glyphs.bar + ' ─' + '─'.repeat(30)),
-    INDENT + faint('📢 AD'),
-    INDENT + bold(String(ad.name ?? '')),
-    ...(ad.description ? [INDENT + String(ad.description)] : []),
-    ...(ad.url ? [INDENT + neon('→ ') + link(String(ad.url), ad.url)] : []),
+  prompt?.erase?.();
+  const width = Math.min(56, Math.max(28, columns() - INDENT.length - 2));
+  const inner = width - 4;
+  const url = ad.url ? link(ad.url, ad.url) : null;
+  const body = [
+    faint('📢 AD'),
+    bold(truncateStyled(String(ad.name ?? ''), inner)),
+    ...(ad.description ? [dim(truncateStyled(String(ad.description), inner))] : []),
+    ...(url ? [neon('→ ') + url] : []),
   ];
+  const rows = [
+    INDENT + dim('╭' + repeat('─', width - 2) + '╮'),
+    ...body.map((row) => INDENT + dim('│') + ' ' + padEnd(row, inner) + ' ' + dim('│')),
+    INDENT + dim('╰' + repeat('─', width - 2) + '╯'),
+  ];
+  line('');
   for (const row of rows) lineTracked(scroller, row);
   line('');
+  prompt?.refresh?.();
 }
 
 /** OSC 8 hyperlink — plain text fallback in terminals without support. */
@@ -331,7 +343,9 @@ async function agentTurn(userText, { api, state, prompt }) {
       state.history.push({ role: 'assistant', content });
       await afterReply(state, api, usage);
       // OpenAds: fire-and-forget after the reply, never blocking or re-rendering
-      api.ad(state.auth.token, userText).then((ad) => printAdCard(ad, state.scroller));
+      api
+        .ad(state.auth.token, userText)
+        .then((ad) => printAdCard(ad, { scroller: state.scroller, prompt }));
       return 'ok';
     }
 
