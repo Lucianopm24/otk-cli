@@ -48,6 +48,7 @@ export class BoxedPrompt {
     this.listening = false;
     this.hint = '';
     this.lastRows = [];
+    this.viewportRows = 0;
     this.lastLayoutKey = '';
   }
 
@@ -233,6 +234,7 @@ export class BoxedPrompt {
     }
     this.height = 0;
     this.cursorFromTop = 0;
+    this.viewportRows = 0;
     this.lastRows = [];
   }
 
@@ -242,11 +244,18 @@ export class BoxedPrompt {
     if (this.scroller?.scrolled) {
       this.erase();
       const viewport = this.scroller.renderViewport(() => []);
+      // anchor repaints: walk back up to the viewport's first row before
+      // overwriting, or each scroll key would stack a copy further down.
+      if (this.viewportRows > 0) {
+        write(`\u001b[${this.viewportRows - 1}A\r\u001b[J`);
+      }
       write(viewport.join('\n'));
+      this.viewportRows = viewport.length;
       this.height = 0;
       this.lastRows = [];
       return;
     }
+    this.viewportRows = 0;
 
     const width = this.width();
     const charset = borders.round;
@@ -349,6 +358,7 @@ export class BoxedPrompt {
     this.hint = '';
     this.height = 0;
     this.cursorFromTop = 0;
+    this.viewportRows = 0;
     readline.emitKeypressEvents(stdin);
     if (typeof stdin.setRawMode === 'function') stdin.setRawMode(true);
     stdin.resume();

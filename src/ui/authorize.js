@@ -73,8 +73,9 @@ export function authorizeTool({ toolName, preview, argsSummary = '' }) {
       while (framed.length < FIXED) framed.push('');
 
       if (paintedOnce) {
-        // anchored repaint: return to the first popup row and overwrite
-        write(`\u001b[${FIXED}A\r\u001b[J`);
+        // anchored repaint: the cursor sits on the popup's LAST row after the
+        // previous paint, so go up FIXED-1 rows to reach its first row.
+        write(`\u001b[${FIXED - 1}A\r\u001b[J`);
       }
       write(framed.join('\n'));
       paintedOnce = true;
@@ -95,7 +96,8 @@ export function authorizeTool({ toolName, preview, argsSummary = '' }) {
       if (done) return;
       done = true;
       cleanup();
-      write(`\u001b[${height}A\r\u001b[J`);
+      // cursor is on the popup's last row: up height-1 lands on its first row
+      write(`\u001b[${height - 1}A\r\u001b[J`);
       resolve(value);
     };
     const redraw = () => {

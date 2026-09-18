@@ -58,11 +58,16 @@ function lineTracked(scroller, text = '') {
   scroller?.append(text);
 }
 
+/**
+ * Keep the last HISTORY_LIMIT messages, but tool results (role "tool") ride
+ * along for free: they never consume slots from the context window.
+ */
 function trimHistory(history) {
-  if (history.length <= HISTORY_LIMIT) return history;
-  const trimmed = history.slice(history.length - HISTORY_LIMIT);
-  while (trimmed.length > 0 && trimmed[0].role !== 'user') trimmed.shift();
-  return trimmed;
+  const counted = history.filter((m) => m.role !== 'tool');
+  if (counted.length <= HISTORY_LIMIT) return history;
+  const cutoff = counted[counted.length - HISTORY_LIMIT];
+  const start = history.indexOf(cutoff);
+  return start > 0 ? history.slice(start) : history;
 }
 
 export function sessionRemaining(state) {
@@ -189,6 +194,28 @@ export function printFarewell(state) {
   blank(1);
 }
 
+/**
+ * OpenAds card: additive-only render after the model's reply. The ad is
+ * always labeled, and a failed/missing ad renders nothing at all.
+ */
+function printAdCard(ad, scroller) {
+  if (!ad) return;
+  const rows = [
+    INDENT + faint(glyphs.bar + ' ─' + '─'.repeat(30)),
+    INDENT + faint('📢 AD'),
+    INDENT + bold(String(ad.name ?? '')),
+    ...(ad.description ? [INDENT + String(ad.description)] : []),
+    ...(ad.url ? [INDENT + neon('→ ') + link(String(ad.url), ad.url)] : []),
+  ];
+  for (const row of rows) lineTracked(scroller, row);
+  line('');
+}
+
+/** OSC 8 hyperlink — plain text fallback in terminals without support. */
+function link(text, url) {
+  return `\u001b]8;;${url}\u0007${text}\u001b]8;;\u0007`;
+}
+
 async function afterReply(state, api, usage) {
   if (!state.model?.usesSessions) {
     await refreshBalanceAfterStream(state, api);
@@ -303,6 +330,8 @@ async function agentTurn(userText, { api, state, prompt }) {
       printUsageLine(state, usage);
       state.history.push({ role: 'assistant', content });
       await afterReply(state, api, usage);
+      // OpenAds: fire-and-forget after the reply, never blocking or re-rendering
+      api.ad(state.auth.token, userText).then((ad) => printAdCard(ad, state.scroller));
       return 'ok';
     }
 
@@ -343,7 +372,7 @@ async function agentTurn(userText, { api, state, prompt }) {
     // blocks intact, then one user message carrying all [TOOL RESULT] markers,
     // multiple results joined with \n---\n.
     state.history.push({ role: 'assistant', content });
-    state.history.push({ role: 'user', content: results.join('\n---\n') });
+    state.history.push({ role: 'tool', content: results.join('\n---\n') });
     if (denied) {
       blank(1);
       line(INDENT + dim('Continuing without the tool — Toeky will answer in plain text.'));

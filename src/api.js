@@ -185,6 +185,22 @@ export class OtkApi {
     return { content: String(data.content ?? ''), usage: normalizeUsage(data.usage) };
   }
 
+  /**
+   * OpenAds: ask for an ad matching the user's last prompt. No match or any
+   * error (401, 400, 5xx, network) resolves null — the caller renders nothing.
+   */
+  async ad(token, prompt) {
+    try {
+      const data = await this.#request(
+        `/cli/openads/show?prompt=${encodeURIComponent(String(prompt ?? ''))}`,
+        { token },
+      );
+      return data && data.ok ? data.ad : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Exact post-stream spend, since streaming responses carry no usage. */
   async creditsAfterStream(token) {
     try {
