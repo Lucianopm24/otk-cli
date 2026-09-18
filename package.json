@@ -1,0 +1,30 @@
+{
+  "name": "otk-cli",
+  "version": "1.0.0",
+  "description": "OTK CLI — the official OpenTokens client. A premium chat experience inside your terminal.",
+  "type": "module",
+  "bin": {
+    "otk-cli": "bin/otk-cli.js"
+  },
+  "main": "src/index.js",
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node bin/otk-cli.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "keywords": [
+    "opentokens",
+    "cli",
+    "chat",
+    "terminal",
+    "tui"
+  ],
+  "license": "MIT"
+}
