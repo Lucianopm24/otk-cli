@@ -25,7 +25,7 @@ otk-cli
 ## Install
 
 ```bash
-npm install -g otk-cli
+npm install -g opentokens-cli
 otk-cli
 ```
 

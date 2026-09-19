@@ -1,5 +1,5 @@
 {
-  "name": "otk-cli",
+  "name": "opentokens-cli",
   "version": "1.0.0",
   "description": "OTK CLI — the official OpenTokens client. A premium chat experience inside your terminal.",
   "type": "module",
