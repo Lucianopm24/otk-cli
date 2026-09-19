@@ -417,7 +417,10 @@ async function agentTurn(userText, { api, state, prompt }) {
       }
       const spinner = createSpinner({ label: `Running ${call.name}…` });
       spinner.start();
-      const result = await executeTool(call.name, call.args);
+      const result = await executeTool(call.name, call.args, {
+        api,
+        token: state.auth.token,
+      });
       spinner.stop();
       results.push(`[TOOL RESULT: ${call.name}]\n${result.output}`);
       const mark = result.ok ? neon(glyphs.ok) : warn(glyphs.cross);

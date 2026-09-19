@@ -144,11 +144,44 @@ test('executeTool writes and reads a file, and refuses unknown tools', async () 
   }
 });
 
+test('web_search resolves from the loose name and describes its cost', async () => {
+  assert.equal(resolveToolName('websearch'), 'web_search');
+  const preview = await buildToolPreview('web_search', { query: 'react 19' });
+  assert.match(preview.join('\n'), /0\.003/);
+});
+
+test('web_search formats API results, the charge and the 402 message', async () => {
+  const okApi = {
+    async search(token, query) {
+      assert.equal(token, 'ot_test');
+      assert.equal(query, 'react 19');
+      return {
+        charged: 0.003,
+        results: [{ title: 'React 19', url: 'https://react.dev', snippet: 'New hooks\n  here' }],
+      };
+    },
+  };
+  const ok = await executeTool('web_search', { query: 'react 19' }, { api: okApi, token: 'ot_test' });
+  assert.equal(ok.ok, true);
+  assert.match(ok.output, /React 19/);
+  assert.match(ok.output, /https:\/\/react\.dev/);
+  assert.match(ok.output, /Charged 0\.003 credits/);
+
+  const brokeApi = {
+    async search() {
+      throw new Error('web_search cost 0.003 credits/search and you human does not have enough credits');
+    },
+  };
+  const broke = await executeTool('web_search', { query: 'x' }, { api: brokeApi, token: 'ot_test' });
+  assert.equal(broke.ok, false);
+  assert.match(broke.output, /not have enough credits/);
+});
+
 test('toolDeclarations describes every tool for the request body', () => {
   const declarations = toolDeclarations();
   assert.deepEqual(
     declarations.map((declaration) => declaration.name),
-    ['write_file', 'read_file', 'edit_file', 'run_command'],
+    ['write_file', 'read_file', 'edit_file', 'run_command', 'web_search'],
   );
   for (const declaration of declarations) {
     assert.equal(typeof declaration.description, 'string');

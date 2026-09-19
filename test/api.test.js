@@ -193,3 +193,46 @@ test('streaming gate errors arrive before any token', async () => {
     (error) => error.status === 429 && /No free sessions/.test(error.message),
   );
 });
+
+test('search() posts the query and normalises the results and charge', async () => {
+  const api = apiWith((url, init) => {
+    assert.equal(url, 'https://example.test/cli/tools/search');
+    assert.equal(init.method, 'POST');
+    assert.equal(init.headers.authorization, 'Bearer ot_test');
+    assert.deepEqual(JSON.parse(init.body), { query: 'react 19 new hooks' });
+    return jsonResponse({
+      ok: true,
+      charged: 0.003,
+      results: [
+        { title: 'React 19', url: 'https://react.dev', snippet: 'New hooks' },
+        null,
+      ],
+    });
+  });
+  const out = await api.search('ot_test', 'react 19 new hooks');
+  assert.equal(out.charged, 0.003);
+  assert.deepEqual(out.results, [
+    { title: 'React 19', url: 'https://react.dev', snippet: 'New hooks' },
+  ]);
+});
+
+test('search() surfaces the 402 message as an ApiError', async () => {
+  const api = apiWith(() =>
+    jsonResponse(
+      {
+        ok: false,
+        charged: false,
+        error:
+          'web_search cost 0.003 credits/search and you human does not have enough credits to pay it, so the search was not succeded.',
+      },
+      402,
+    ),
+  );
+  await assert.rejects(
+    () => api.search('ot_test', 'x'),
+    (error) =>
+      error instanceof ApiError &&
+      error.status === 402 &&
+      /not have enough credits/.test(error.message),
+  );
+});

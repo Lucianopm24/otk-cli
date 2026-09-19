@@ -186,6 +186,31 @@ export class OtkApi {
   }
 
   /**
+   * Web search proxy (`web_search` tool). The Exa key lives on the server, so
+   * the CLI only ever posts a query and gets back normalized results. Each
+   * search costs credits (0.003), even on free sessions; a 402 comes back as
+   * an ApiError whose message is what the agent relays to the human.
+   */
+  async search(token, query) {
+    const data = await this.#request('/cli/tools/search', {
+      method: 'POST',
+      token,
+      body: { query: String(query ?? '') },
+    });
+    const results = Array.isArray(data.results)
+      ? data.results
+          .filter((result) => result && typeof result === 'object')
+          .map((result) => ({
+            title: String(result.title ?? ''),
+            url: String(result.url ?? ''),
+            snippet: String(result.snippet ?? ''),
+          }))
+      : [];
+    const charged = Number(data.charged);
+    return { results, charged: Number.isFinite(charged) ? charged : 0 };
+  }
+
+  /**
    * OpenAds: ask for an ad matching the user's last prompt. No match or any
    * error (401, 400, 5xx, network) resolves null — the caller renders nothing.
    */

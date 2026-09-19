@@ -183,6 +183,38 @@ export const TOOLS = {
       }
     },
   },
+
+  web_search: {
+    description:
+      'Search the web and return the top 5 results (title, url and snippet). Costs 0.003 credits per search, even on free sessions.',
+    parameters: [{ name: 'query', description: 'The search query', required: true }],
+    async preview(args) {
+      return [
+        `search  ${args.query}`,
+        'cost    0.003 credits — charged even on free sessions',
+        'runs through OpenTokens (Exa); the API key never reaches this machine',
+      ];
+    },
+    async run(args, { api, token } = {}) {
+      const query = String(args.query ?? '').trim();
+      if (!query) return { ok: false, output: "ERROR: missing argument 'query'" };
+      if (!api || !token) return { ok: false, output: 'ERROR: not signed in - cannot search the web.' };
+      try {
+        const { results, charged } = await api.search(token, query);
+        const rows = [`Web search: ${query}`, `Charged ${charged} credits.`];
+        if (results.length === 0) rows.push('No results found.');
+        results.forEach((result, index) => {
+          rows.push('');
+          rows.push(`${index + 1}. ${result.title || '(untitled)'}`);
+          if (result.url) rows.push(`   ${result.url}`);
+          if (result.snippet) rows.push(`   ${result.snippet.replace(/\s+/g, ' ').trim()}`);
+        });
+        return { ok: true, output: truncateOutput(rows.join('\n')) };
+      } catch (error) {
+        return { ok: false, output: `ERROR: ${String(error?.message || error)}` };
+      }
+    },
+  },
 };
 
 export function toolNames() {
@@ -304,13 +336,16 @@ export async function buildToolPreview(name, args) {
   }
 }
 
-/** Execute an authorized tool call. Never throws: failures come back as output. */
-export async function executeTool(name, args) {
+/**
+ * Execute an authorized tool call. Never throws: failures come back as output.
+ * `context` carries what some tools need (`{ api, token }` for `web_search`).
+ */
+export async function executeTool(name, args, context = {}) {
   const resolved = resolveToolName(name);
   const tool = resolved ? TOOLS[resolved] : null;
   if (!tool) return { ok: false, output: `ERROR: unknown tool ${name}` };
   try {
-    return await tool.run(args ?? {});
+    return await tool.run(args ?? {}, context);
   } catch (error) {
     return { ok: false, output: `ERROR: ${String(error?.message || error)}` };
   }
