@@ -63,6 +63,24 @@ test('extractToolCalls accepts <tool_call> and mixed closing tags', () => {
   );
 });
 
+test('extractToolCalls accepts <arg_key>/<arg_value> (real backend payload)', () => {
+  // Copied verbatim from `~/.otk/toolcall-debug.log` shipped by the backend:
+  // `<toolcall>` + `</tool_call>` and underscored argument tags.
+  const real =
+    '¡Hola! Claro que sí, voy a hacer una llamada a una herramienta para ti.\n\n' +
+    '<toolcall>web_search<arg_key>query</arg_key><arg_value>noticias tecnológicas recientes</arg_value></tool_call>';
+  assert.deepEqual(extractToolCalls(real), [
+    { name: 'web_search', args: { query: 'noticias tecnológicas recientes' } },
+  ]);
+
+  assert.deepEqual(
+    extractToolCalls(
+      '<tool_call>read_file<arg_key>path</arg_key><arg_value>a.js</arg_value></tool_call>',
+    ),
+    [{ name: 'read_file', args: { path: 'a.js' } }],
+  );
+});
+
 test('extractToolCalls returns nothing for plain text', () => {
   assert.deepEqual(extractToolCalls('no tools here'), []);
 });

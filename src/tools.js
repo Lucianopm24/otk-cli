@@ -200,13 +200,14 @@ export function toolDeclarations() {
 
 // Models are loose about the block spelling: they mix `<toolcall>` with
 // `<tool_call>` (opening and closing independently), wrap tags with newlines
-// and indentation, and sometimes drop the underscore from the tool name. All
-// of that is accepted here — the tool name and the `<argkey>`/`<argvalue>`
-// pairs are the only required pieces.
+// and indentation, sometimes drop the underscore from the tool name, and write
+// the arguments as either `<argkey>` or `<arg_key>`. All of that is accepted
+// here — the tool name and the key/value pairs are the only required pieces.
 const OPEN_TOOLCALL_RE = /<\s*tool[\s_-]*call\s*>/i;
 const TOOLCALL_RE =
-  /<\s*tool[\s_-]*call\s*>\s*([\w.-]+)\s*((?:<argkey>[\s\S]*?<\/argkey>\s*<argvalue>[\s\S]*?<\/argvalue>\s*)*)<\/\s*tool[\s_-]*call\s*>/gi;
-const PAIR_RE = /<argkey>([\s\S]*?)<\/argkey>\s*<argvalue>([\s\S]*?)<\/argvalue>/gi;
+  /<\s*tool[\s_-]*call\s*>\s*([\w.-]+)\s*((?:<arg[\s_-]*key>[\s\S]*?<\/arg[\s_-]*key>\s*<arg[\s_-]*value>[\s\S]*?<\/arg[\s_-]*value>\s*)*)<\/\s*tool[\s_-]*call\s*>/gi;
+const PAIR_RE =
+  /<arg[\s_-]*key>([\s\S]*?)<\/arg[\s_-]*key>\s*<arg[\s_-]*value>([\s\S]*?)<\/arg[\s_-]*value>/gi;
 
 /**
  * Index of the first opening tool-call tag, whatever its spelling, or -1.

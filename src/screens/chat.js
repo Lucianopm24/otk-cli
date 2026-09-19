@@ -5,6 +5,7 @@
  */
 
 import { appendFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { blank, clearScreen, line, section } from '../ui/out.js';
 import { createLiveMarkdown } from '../ui/live.js';
@@ -13,7 +14,7 @@ import { selectModel } from '../ui/select.js';
 import { wrapStyled, padEnd, repeat, truncateStyled } from '../util/ansi.js';
 import { bold, dim, faint, glyphs, mint, neon, neonSoft, warn } from '../ui/theme.js';
 import { TokenExpiredError } from '../api.js';
-import { savePrefs } from '../config.js';
+import { CONFIG_DIR, savePrefs } from '../config.js';
 import {
   creditsExact,
   creditsLabel,
@@ -74,22 +75,31 @@ function trimHistory(history) {
 }
 
 /**
- * Debug helper (`OTK_DEBUG_TOOLS=1`): append the raw model reply and the calls
- * the parser recognised to `otk-tools-debug.log`, so a format mismatch between
- * the backend and the CLI can be diagnosed without eyeballing the TUI.
+ * When a reply clearly carries a tool call but the parser refuses it, write the
+ * exact bytes (JSON-escaped and raw) plus the SSE frames to
+ * `~/.otk/toolcall-debug.log`, and return that path so the UI can point at it.
+ * Also runs unconditionally with `OTK_DEBUG_TOOLS=1`.
  */
-function dumpToolDebug(content, calls) {
+function dumpToolDebug(content, calls, frames) {
+  const forced = process.env.OTK_DEBUG_TOOLS === '1';
+  const suspicious = calls.length === 0 && /tool[\s_-]*call|<argkey>/i.test(content);
+  if (!forced && !suspicious) return null;
+  const file = join(CONFIG_DIR, 'toolcall-debug.log');
   try {
     const parsed = calls
       .map((call) => `${call.name} ${JSON.stringify(call.args)}`)
       .join('\n');
     appendFileSync(
-      'otk-tools-debug.log',
+      file,
       `\n=== ${new Date().toISOString()} \u00b7 calls=${calls.length} ===\n` +
-        `--- raw ---\n${content}\n--- parsed ---\n${parsed}\n`,
+        `--- content (json) ---\n${JSON.stringify(content)}\n` +
+        `--- content ---\n${content}\n` +
+        `--- sse frames ---\n${(frames ?? []).join('\n')}\n` +
+        `--- parsed ---\n${parsed}\n`,
     );
+    return file;
   } catch {
-    /* debugging only — never break the turn */
+    return null;
   }
 }
 
@@ -320,6 +330,7 @@ async function agentTurn(userText, { api, state, prompt }) {
 
     let content;
     let usage;
+    let frames = [];
     try {
       const streamed = await api.stream(state.auth.token, {
         model: state.model.id,
@@ -339,6 +350,7 @@ async function agentTurn(userText, { api, state, prompt }) {
       });
       content = streamed.content;
       usage = streamed.usage;
+      frames = streamed.frames ?? [];
     } catch (error) {
       spinner.stop();
       if (live) live.discard();
@@ -347,9 +359,17 @@ async function agentTurn(userText, { api, state, prompt }) {
     spinner.stop();
 
     const calls = extractToolCalls(content);
-    if (process.env.OTK_DEBUG_TOOLS === '1') dumpToolDebug(content, calls);
+    const debugFile = dumpToolDebug(content, calls, frames);
 
     if (calls.length === 0) {
+      if (debugFile) {
+        line(
+          INDENT +
+            warn(glyphs.warn) +
+            ' ' +
+            dim(`Unrecognised tool call — details saved to ${debugFile}`),
+        );
+      }
       if (!live) live = createLiveMarkdown({ indent: INDENT });
       live.finish(content);
       if (!content.trim()) line(INDENT + faint('(empty response)'));

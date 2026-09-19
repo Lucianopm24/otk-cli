@@ -5,17 +5,7 @@
  * is exactly what the UI shows the user.
  */
 
-import { appendFileSync } from 'node:fs';
 import { API_BASE_URL, WEB_BASE_URL } from './version.js';
-
-/** `OTK_DEBUG_TOOLS=1` mirrors the raw SSE frames next to the parsed calls. */
-function debugSseLine(line) {
-  try {
-    appendFileSync('otk-tools-debug.log', `[sse] ${line}\n`);
-  } catch {
-    /* debugging only — never break the stream */
-  }
-}
 
 export class ApiError extends Error {
   constructor(message, { status = 0, code = null } = {}) {
@@ -243,6 +233,9 @@ export class OtkApi {
     let buffer = '';
     let content = '';
     let usage = null;
+    // Raw `data:` payloads, kept so callers can dump them when a tool call
+    // arrives in an unexpected shape.
+    const frames = [];
 
     const handlePayload = (payload) => {
       const trimmed = payload.trim();
@@ -272,16 +265,19 @@ export class OtkApi {
         buffer = lines.pop() ?? '';
         for (const line of lines) {
           if (!line.startsWith('data:')) continue;
-          if (process.env.OTK_DEBUG_TOOLS === '1') debugSseLine(line);
+          frames.push(line.slice(5));
           handlePayload(line.slice(5));
         }
       }
-      if (buffer.startsWith('data:')) handlePayload(buffer.slice(5));
+      if (buffer.startsWith('data:')) {
+        frames.push(buffer.slice(5));
+        handlePayload(buffer.slice(5));
+      }
     } finally {
       reader.releaseLock?.();
     }
 
-    return { content, usage };
+    return { content, usage, frames };
   }
 
   async #requestRaw(path, { method = 'GET', token = null, body = null, signal = null } = {}) {
