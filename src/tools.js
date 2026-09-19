@@ -7,7 +7,10 @@
  *
  *   <toolcall>write_file<argkey>path</argkey><argvalue>a.txt</argvalue></toolcall>
  *
- * Results go back as a user message with a `[TOOL RESULT: name]` marker.
+ * Models often pretty-print that block with newlines and indentation, so the
+ * parser tolerates whitespace at every tag boundary.
+ *
+ * Results go back as a `tool` message with a `[TOOL RESULT: name]` marker.
  */
 
 import { exec } from 'node:child_process';
@@ -195,8 +198,13 @@ export function toolDeclarations() {
   }));
 }
 
-const TOOLCALL_RE = /<toolcall>([\w.-]+)((?:<argkey>[\s\S]*?<\/argkey><argvalue>[\s\S]*?<\/argvalue>)*)<\/toolcall>/g;
-const PAIR_RE = /<argkey>([\s\S]*?)<\/argkey><argvalue>([\s\S]*?)<\/argvalue>/g;
+// Models rarely emit the compact wire form verbatim — most pretty-print the
+// block with newlines and indentation, so every tag boundary tolerates
+// whitespace. The tool name and each `<argkey>`/`<argvalue>` pair are the only
+// required pieces.
+const TOOLCALL_RE =
+  /<toolcall>\s*([\w.-]+)\s*((?:<argkey>[\s\S]*?<\/argkey>\s*<argvalue>[\s\S]*?<\/argvalue>\s*)*)<\/toolcall>/g;
+const PAIR_RE = /<argkey>([\s\S]*?)<\/argkey>\s*<argvalue>([\s\S]*?)<\/argvalue>/g;
 
 /**
  * Pull every finished `<toolcall>` block out of the message.
@@ -247,7 +255,7 @@ export function maskToolStream(text) {
   const open = source.indexOf('<toolcall>', last);
   if (open !== -1) {
     out += source.slice(last, open);
-    const name = /<toolcall>([\w.-]+)/.exec(source.slice(open));
+    const name = /<toolcall>\s*([\w.-]+)/.exec(source.slice(open));
     out += `\n⚙ ${name ? name[1] : 'tool'} requesting authorization…`;
   } else {
     out += source.slice(last);

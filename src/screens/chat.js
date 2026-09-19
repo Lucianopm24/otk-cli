@@ -383,8 +383,8 @@ async function agentTurn(userText, { api, state, prompt }) {
     }
 
     // Per the backend docs: keep the assistant message with the <toolcall>
-    // blocks intact, then one user message carrying all [TOOL RESULT] markers,
-    // multiple results joined with \n---\n.
+    // blocks intact, then one `tool` message carrying all [TOOL RESULT]
+    // markers, multiple results joined with \n---\n.
     state.history.push({ role: 'assistant', content });
     state.history.push({ role: 'tool', content: results.join('\n---\n') });
     if (denied) {
