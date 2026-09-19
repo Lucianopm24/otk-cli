@@ -165,6 +165,55 @@ export class OtkApi {
       }));
   }
 
+  /**
+   * Limited-time pool models: the global pool status plus the caller's own
+   * active session, if any. The session itself starts automatically on the
+   * first message to a pool model — there is no separate "start" endpoint.
+   */
+  async limitedModels(token) {
+    const data = await this.#request('/cli/models/limited', { token });
+    const models = Array.isArray(data.models) ? data.models : [];
+    return models
+      .filter((model) => model && typeof model.model === 'string')
+      .map((model) => ({
+        model: model.model,
+        limitedTime: Boolean(model.limitedTime),
+        free: Boolean(model.free),
+        usesSessions: Boolean(model.usesSessions),
+        poolLimit: Number(model.poolLimit) || 0,
+        poolUsed: Number(model.poolUsed) || 0,
+        poolRemaining: Number(model.poolRemaining) || 0,
+        poolSharedAcrossAllUsers: model.poolSharedAcrossAllUsers !== false,
+        poolResets: Boolean(model.poolResets),
+        yourActiveSession:
+          model.yourActiveSession && Number(model.yourActiveSession.expiresAt) > 0
+            ? {
+                startedAt: Number(model.yourActiveSession.startedAt) || null,
+                expiresAt: Number(model.yourActiveSession.expiresAt),
+                msRemaining: Number(model.yourActiveSession.msRemaining) || 0,
+              }
+            : null,
+      }));
+  }
+
+  /**
+   * The caller's active limited-time session (null when there is none).
+   * `msRemaining` is computed server-side; the caller anchors it locally on
+   * receipt so the countdown never needs another round-trip.
+   */
+  async limitedBonus(token) {
+    const data = await this.#request('/cli/models/bonus', { token });
+    const session = data.activeLimitedTimeSession;
+    if (!session || !Number(session.expiresAt)) return null;
+    return {
+      model: String(session.model ?? ''),
+      startedAt: Number(session.startedAt) || null,
+      expiresAt: Number(session.expiresAt),
+      msRemaining: Number(session.msRemaining) || 0,
+      minutesRemaining: Number(session.minutesRemaining) || 0,
+    };
+  }
+
   async account(token) {
     const data = await this.#request('/cli/account/me', { token });
     return data.account ?? null;

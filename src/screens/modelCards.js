@@ -42,7 +42,12 @@ export function modelDetailCard(model, options = {}) {
   const inner = w - 4;
   const name = modelDisplayName(model.id);
   const rows = [];
-  rows.push(neon(glyphs.bullet) + '  ' + bold(neonSoft(name)));
+  if (model.limitedTime) {
+    rows.push(neon(glyphs.bullet) + '  ' + bold(neonSoft(name)));
+    rows.push(warn('LIMITED'));
+  } else {
+    rows.push(neon(glyphs.bullet) + '  ' + bold(neonSoft(name)));
+  }
   rows.push('');
   rows.push(dim(modelTagline(model)));
   rows.push(dim(modelSummary(model)));
@@ -56,6 +61,10 @@ export function modelDetailCard(model, options = {}) {
     rows.push(labelValue('Output', outputPriceLabel(model), inner));
   }
   rows.push(labelValue('Usage', usageLabel(model), inner));
+  if (model.limitedTime && model.yourActiveSession) {
+    rows.push('');
+    rows.push(...prefixedLines(mint(glyphs.timer), 'Unlocked — your session is active.', inner, mint));
+  }
   if (model.note) {
     rows.push('');
     rows.push(...prefixedLines(mint(glyphs.spark), model.note, inner, mint));

@@ -92,6 +92,62 @@ test('models() normalises the backend payload', async () => {
   assert.equal(models[1].usesSessions, true);
 });
 
+test('limitedModels() normalises the pool payload and the active session', async () => {
+  const api = apiWith((url, init) => {
+    assert.equal(url, 'https://example.test/cli/models/limited');
+    assert.equal(init.headers.authorization, 'Bearer ot_test');
+    return jsonResponse({
+      ok: true,
+      models: [
+        {
+          model: 'gemini-3.8-flash-tiered',
+          limitedTime: true,
+          free: true,
+          usesSessions: false,
+          poolLimit: 20,
+          poolUsed: 20,
+          poolRemaining: 0,
+          poolSharedAcrossAllUsers: true,
+          poolResets: false,
+          yourActiveSession: { startedAt: 1000, expiresAt: 3_600_000, msRemaining: 3_587_000 },
+        },
+        { model: 'other-model', limitedTime: true, yourActiveSession: null },
+      ],
+    });
+  });
+  const models = await api.limitedModels('ot_test');
+  assert.equal(models.length, 2);
+  assert.equal(models[0].poolRemaining, 0);
+  assert.equal(models[0].poolResets, false);
+  assert.equal(models[0].yourActiveSession.msRemaining, 3_587_000);
+  assert.equal(models[1].yourActiveSession, null);
+  assert.equal(models[1].poolLimit, 0);
+});
+
+test('limitedBonus() returns null without a session and normalises with one', async () => {
+  const none = apiWith((url) => {
+    assert.equal(url, 'https://example.test/cli/models/bonus');
+    return jsonResponse({ ok: true, activeLimitedTimeSession: null });
+  });
+  assert.equal(await none.limitedBonus('ot_test'), null);
+
+  const active = apiWith(() =>
+    jsonResponse({
+      ok: true,
+      activeLimitedTimeSession: {
+        model: 'gemini-3.8-flash-tiered',
+        startedAt: 1758300000000,
+        expiresAt: 1758303600000,
+        msRemaining: 3587000,
+        minutesRemaining: 59,
+      },
+    }),
+  );
+  const session = await active.limitedBonus('ot_test');
+  assert.equal(session.model, 'gemini-3.8-flash-tiered');
+  assert.equal(session.msRemaining, 3587000);
+});
+
 test('authenticated 401 responses become TokenExpiredError', async () => {
   const api = apiWith(() => jsonResponse({ ok: false, error: 'Invalid or expired CLI token.' }, 401));
   await assert.rejects(() => api.models('ot_dead'), (error) => error instanceof TokenExpiredError);

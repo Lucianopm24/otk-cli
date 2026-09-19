@@ -74,6 +74,7 @@ export function outputPriceLabel(model) {
 
 /** `Credits` | `Daily sessions` | `Free` */
 export function usageLabel(model) {
+  if (model?.limitedTime) return 'Limited-time pool';
   if (model?.free && !model?.usesSessions) return 'Free';
   if (model?.usesSessions) return 'Daily sessions';
   return 'Credits';
@@ -87,7 +88,11 @@ export function usageIcon(model) {
 
 /** One-line summary: `Credits · $0.05 / $0.15 per 1M` */
 export function modelSummary(model) {
-  const parts = [usageLabel(model)];
+  const parts = [];
+  if (model?.limitedTime && Number.isFinite(Number(model.poolLimit)) && model.poolLimit > 0) {
+    parts.push(`LIMITED · ${model.poolRemaining ?? 0}/${model.poolLimit} left`);
+  }
+  parts.push(usageLabel(model));
   const input = Number(model?.inputPricePerMTok) || 0;
   const output = Number(model?.outputPricePerMTok) || 0;
   if (input > 0 || output > 0) {
@@ -102,6 +107,11 @@ export function modelSummary(model) {
 export function modelTagline(model) {
   const input = Number(model?.inputPricePerMTok) || 0;
   const output = Number(model?.outputPricePerMTok) || 0;
+  if (model?.limitedTime) {
+    return model.yourActiveSession
+      ? 'Limited-time model — unlocked by your active session.'
+      : 'Limited-time model — the first message starts your free hour.';
+  }
   if (model?.usesSessions) return 'Runs on your free daily sessions.';
   if (model?.free) return 'Free to use.';
   const average = (input + output) / 2;

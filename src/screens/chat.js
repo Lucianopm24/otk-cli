@@ -48,6 +48,8 @@ import {
 } from './panels.js';
 import { runSetup } from './setup.js';
 import { APP_NAME, ASSISTANT_NAME } from '../version.js';
+import { anchorLimitedSession, limitedRemaining } from '../util/limitedSession.js';
+import { limitedTimePanel } from './limitedPanel.js';
 
 const PAINT_INTERVAL_MS = 55;
 const HISTORY_LIMIT = 40;
@@ -150,7 +152,14 @@ export function statusLine(state) {
   const model = state.model;
   if (!model) return faint('no model selected');
   const parts = [neon(glyphs.bullet) + ' ' + neonSoft(modelDisplayName(model.id))];
-  if (model.usesSessions) {
+  if (model.limitedTime) {
+    const left = limitedRemaining(state);
+    parts.push(
+      left > 0
+        ? warn(glyphs.timer + ' ' + durationLabel(left) + ' left')
+        : faint('limited pool · ' + (model.poolRemaining ?? '?') + '/' + model.poolLimit),
+    );
+  } else if (model.usesSessions) {
     const left = sessionRemaining(state);
     parts.push(left > 0 ? mint(glyphs.timer + ' ' + durationLabel(left)) : faint('daily sessions'));
   } else if (model.free) {
@@ -172,7 +181,10 @@ function printUserMessage(text) {
 function printUsageLine(state, usage) {
   const model = state.model;
   const parts = [];
-  if (model?.usesSessions) {
+  if (model?.limitedTime) {
+    const left = limitedRemaining(state);
+    parts.push(left > 0 ? `limited session · ${durationLabel(left)} left` : 'limited-time pool');
+  } else if (model?.usesSessions) {
     const left = sessionRemaining(state);
     if (left > 0) parts.push(`free session · ${durationLabel(left)} left`);
   } else if (model?.free) {
@@ -262,6 +274,16 @@ function link(text, url) {
 }
 
 async function afterReply(state, api, usage) {
+  if (state.model?.limitedTime) {
+    // The first message to a pool model starts the hour automatically; pick
+    // up the fresh session window (and remaining pool) from the backend.
+    try {
+      anchorLimitedSession(state, await api.limitedBonus(state.auth.token));
+    } catch {
+      /* cosmetic only */
+    }
+    return;
+  }
   if (!state.model?.usesSessions) {
     await refreshBalanceAfterStream(state, api);
     return;
@@ -508,6 +530,18 @@ async function showModels({ state }) {
   return 'ok';
 }
 
+/** `/models bonus` (or `/bonus`): the active limited-time session countdown. */
+async function showLimited({ api, state }) {
+  try {
+    anchorLimitedSession(state, await api.limitedBonus(state.auth.token));
+  } catch (error) {
+    print(errorPanel(error, { balance: state.balance }));
+    return 'ok';
+  }
+  print(limitedTimePanel(state));
+  return 'ok';
+}
+
 async function showAccount({ api, state }) {
   const account = await api.account(state.auth.token);
   const wasActive = sessionRemaining(state) > 0;
@@ -565,7 +599,10 @@ async function handleCommand(raw, ctx) {
         print(versionPanel());
         return 'ok';
       case 'models':
+        if (args.trim().toLowerCase() === 'bonus') return await showLimited(ctx);
         return await showModels(ctx);
+      case 'bonus':
+        return await showLimited(ctx);
       case 'model':
         return await changeModel(ctx, args);
       case 'account':
@@ -606,10 +643,17 @@ export async function runChat({ api, state, prompt }) {
   renderChatIntro(state);
   const tick = setInterval(() => {
     const session = state.session;
-    if (!session?.endAt) return;
-    if (session.endAt <= Date.now()) {
+    if (session?.endAt && session.endAt <= Date.now()) {
       if (!state.busy) {
         state.session = { endAt: null, startedAt: null };
+        printSessionEnded();
+      }
+      return;
+    }
+    // limited-time pool session: expire locally and announce it once
+    if (state.limited?.session && limitedRemaining(state) === 0) {
+      if (!state.busy) {
+        state.limited = { session: null, receivedAt: null, models: state.limited.models };
         printSessionEnded();
       }
       return;

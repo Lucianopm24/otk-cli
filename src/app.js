@@ -23,6 +23,7 @@ import { errorPanel } from './screens/panels.js';
 import { runSetup } from './screens/setup.js';
 import { printFarewell, runChat, syncSession } from './screens/chat.js';
 import { createApi, TokenExpiredError, ApiError } from './api.js';
+import { anchorLimitedSession, applyLimitedModels } from './util/limitedSession.js';
 import { clearAuth, loadAuth, loadPrefs, savePrefs, tokenExpired } from './config.js';
 import { bold, dim, faint, glyphs, neon, neonSoft } from './ui/theme.js';
 import { APP_NAME, ASSISTANT_NAME, VERSION } from './version.js';
@@ -72,6 +73,7 @@ export async function runApp(options = {}) {
     session: { endAt: null, startedAt: null },
     history: [],
     busy: false,
+    limited: { session: null, receivedAt: null, models: [] },
   };
 
   const prefs = loadPrefs();
@@ -138,6 +140,14 @@ export async function runApp(options = {}) {
       for (const row of errorPanel(error, {})) line(row);
       return 1;
     }
+    // Limited-time pool data is additive: if the endpoint fails or the
+    // backend does not ship it yet, the plain model list still works.
+    try {
+      const limited = await api.limitedModels(state.auth.token);
+      models = applyLimitedModels(models, limited);
+    } catch {
+      /* cosmetic only: limited badges just don't render */
+    }
     if (models.length === 0) {
       blank(1);
       for (const row of ['', '  ' + faint('No models are available right now. Try again in a moment.'), '']) {
@@ -180,6 +190,13 @@ export async function runApp(options = {}) {
         if (!(error instanceof ApiError)) throw error;
         // Non-fatal: the chat still works, /account can retry later.
       }
+    }
+
+    // Re-anchor any active limited-time session for the countdown.
+    try {
+      anchorLimitedSession(state, await api.limitedBonus(state.auth.token));
+    } catch {
+      /* cosmetic only */
     }
 
     const outcome = await runChat({ api, state, prompt });

@@ -159,7 +159,12 @@ function hintsFor(error, context = {}) {
     }
     hints.push(`Add credits at ${WEB_BASE_URL.replace(/^https?:\/\//, '')}, or switch to a free model with /model.`);
   } else if (status === 429) {
-    hints.push('Free sessions reset every day. You can also switch to a credits model with /model.');
+    if (/pool|limited/i.test(String(error?.message || ''))) {
+      // Pool exhausted on a limited-time model: informative, not an error to retry.
+      hints.push('The limited-time pool is fully used right now. It does not reset — try a free or credits model with /model.');
+    } else {
+      hints.push('Free sessions reset every day. You can also switch to a credits model with /model.');
+    }
   } else if (status === 423) {
     hints.push('That model is in maintenance. Pick another one with /model.');
   } else if (status === 0) {
