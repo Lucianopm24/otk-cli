@@ -4,6 +4,8 @@
  * counts) stays out of the way in a single faint meta line.
  */
 
+import { appendFileSync } from 'node:fs';
+
 import { blank, clearScreen, line, section } from '../ui/out.js';
 import { createLiveMarkdown } from '../ui/live.js';
 import { createSpinner } from '../ui/spinner.js';
@@ -69,6 +71,26 @@ function trimHistory(history) {
   const cutoff = counted[counted.length - HISTORY_LIMIT];
   const start = history.indexOf(cutoff);
   return start > 0 ? history.slice(start) : history;
+}
+
+/**
+ * Debug helper (`OTK_DEBUG_TOOLS=1`): append the raw model reply and the calls
+ * the parser recognised to `otk-tools-debug.log`, so a format mismatch between
+ * the backend and the CLI can be diagnosed without eyeballing the TUI.
+ */
+function dumpToolDebug(content, calls) {
+  try {
+    const parsed = calls
+      .map((call) => `${call.name} ${JSON.stringify(call.args)}`)
+      .join('\n');
+    appendFileSync(
+      'otk-tools-debug.log',
+      `\n=== ${new Date().toISOString()} \u00b7 calls=${calls.length} ===\n` +
+        `--- raw ---\n${content}\n--- parsed ---\n${parsed}\n`,
+    );
+  } catch {
+    /* debugging only — never break the turn */
+  }
 }
 
 export function sessionRemaining(state) {
@@ -325,6 +347,7 @@ async function agentTurn(userText, { api, state, prompt }) {
     spinner.stop();
 
     const calls = extractToolCalls(content);
+    if (process.env.OTK_DEBUG_TOOLS === '1') dumpToolDebug(content, calls);
 
     if (calls.length === 0) {
       if (!live) live = createLiveMarkdown({ indent: INDENT });

@@ -5,7 +5,17 @@
  * is exactly what the UI shows the user.
  */
 
+import { appendFileSync } from 'node:fs';
 import { API_BASE_URL, WEB_BASE_URL } from './version.js';
+
+/** `OTK_DEBUG_TOOLS=1` mirrors the raw SSE frames next to the parsed calls. */
+function debugSseLine(line) {
+  try {
+    appendFileSync('otk-tools-debug.log', `[sse] ${line}\n`);
+  } catch {
+    /* debugging only — never break the stream */
+  }
+}
 
 export class ApiError extends Error {
   constructor(message, { status = 0, code = null } = {}) {
@@ -262,6 +272,7 @@ export class OtkApi {
         buffer = lines.pop() ?? '';
         for (const line of lines) {
           if (!line.startsWith('data:')) continue;
+          if (process.env.OTK_DEBUG_TOOLS === '1') debugSseLine(line);
           handlePayload(line.slice(5));
         }
       }

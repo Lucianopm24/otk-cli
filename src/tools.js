@@ -203,9 +203,9 @@ export function toolDeclarations() {
 // and indentation, and sometimes drop the underscore from the tool name. All
 // of that is accepted here — the tool name and the `<argkey>`/`<argvalue>`
 // pairs are the only required pieces.
-const OPEN_TOOLCALL_RE = /<\s*tool_?call\s*>/i;
+const OPEN_TOOLCALL_RE = /<\s*tool[\s_-]*call\s*>/i;
 const TOOLCALL_RE =
-  /<\s*tool_?call\s*>\s*([\w.-]+)\s*((?:<argkey>[\s\S]*?<\/argkey>\s*<argvalue>[\s\S]*?<\/argvalue>\s*)*)<\/\s*tool_?call\s*>/gi;
+  /<\s*tool[\s_-]*call\s*>\s*([\w.-]+)\s*((?:<argkey>[\s\S]*?<\/argkey>\s*<argvalue>[\s\S]*?<\/argvalue>\s*)*)<\/\s*tool[\s_-]*call\s*>/gi;
 const PAIR_RE = /<argkey>([\s\S]*?)<\/argkey>\s*<argvalue>([\s\S]*?)<\/argvalue>/gi;
 
 /**
@@ -267,7 +267,7 @@ export function maskToolStream(text) {
   const open = rest.search(OPEN_TOOLCALL_RE);
   if (open !== -1) {
     out += rest.slice(0, open);
-    const name = /<\s*tool_?call\s*>\s*([\w.-]+)/i.exec(rest.slice(open));
+    const name = /<\s*tool[\s_-]*call\s*>\s*([\w.-]+)/i.exec(rest.slice(open));
     out += `\n⚙ ${name ? name[1] : 'tool'} requesting authorization…`;
   } else {
     out += rest;
