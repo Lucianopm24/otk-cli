@@ -198,13 +198,24 @@ export function toolDeclarations() {
   }));
 }
 
-// Models rarely emit the compact wire form verbatim — most pretty-print the
-// block with newlines and indentation, so every tag boundary tolerates
-// whitespace. The tool name and each `<argkey>`/`<argvalue>` pair are the only
-// required pieces.
+// Models are loose about the block spelling: they mix `<toolcall>` with
+// `<tool_call>` (opening and closing independently), wrap tags with newlines
+// and indentation, and sometimes drop the underscore from the tool name. All
+// of that is accepted here — the tool name and the `<argkey>`/`<argvalue>`
+// pairs are the only required pieces.
+const OPEN_TOOLCALL_RE = /<\s*tool_?call\s*>/i;
 const TOOLCALL_RE =
-  /<toolcall>\s*([\w.-]+)\s*((?:<argkey>[\s\S]*?<\/argkey>\s*<argvalue>[\s\S]*?<\/argvalue>\s*)*)<\/toolcall>/g;
-const PAIR_RE = /<argkey>([\s\S]*?)<\/argkey>\s*<argvalue>([\s\S]*?)<\/argvalue>/g;
+  /<\s*tool_?call\s*>\s*([\w.-]+)\s*((?:<argkey>[\s\S]*?<\/argkey>\s*<argvalue>[\s\S]*?<\/argvalue>\s*)*)<\/\s*tool_?call\s*>/gi;
+const PAIR_RE = /<argkey>([\s\S]*?)<\/argkey>\s*<argvalue>([\s\S]*?)<\/argvalue>/gi;
+
+/**
+ * Index of the first opening tool-call tag, whatever its spelling, or -1.
+ * Used to split the prose preamble from the tool blocks while streaming.
+ */
+export function firstToolCallIndex(text) {
+  const match = OPEN_TOOLCALL_RE.exec(String(text ?? ''));
+  return match ? match.index : -1;
+}
 
 /**
  * Pull every finished `<toolcall>` block out of the message.
@@ -252,21 +263,39 @@ export function maskToolStream(text) {
     last = match.index + match[0].length;
   }
   // an open (still-streaming) block: stop before it and show a pending marker
-  const open = source.indexOf('<toolcall>', last);
+  const rest = source.slice(last);
+  const open = rest.search(OPEN_TOOLCALL_RE);
   if (open !== -1) {
-    out += source.slice(last, open);
-    const name = /<toolcall>\s*([\w.-]+)/.exec(source.slice(open));
+    out += rest.slice(0, open);
+    const name = /<\s*tool_?call\s*>\s*([\w.-]+)/i.exec(rest.slice(open));
     out += `\n⚙ ${name ? name[1] : 'tool'} requesting authorization…`;
   } else {
-    out += source.slice(last);
+    out += rest;
   }
   return out;
 }
 
+/** Compare tool names ignoring case and separators (`runcommand` -> `run_command`). */
+function canonicalToolName(name) {
+  return String(name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Map a model-supplied tool name onto a declared one, or null when unknown. */
+export function resolveToolName(name) {
+  if (!name) return null;
+  if (Object.hasOwn(TOOLS, name)) return name;
+  const wanted = canonicalToolName(name);
+  for (const key of Object.keys(TOOLS)) {
+    if (canonicalToolName(key) === wanted) return key;
+  }
+  return null;
+}
+
 /** Build the confirmation preview rows for a tool call (async: may stat files). */
 export async function buildToolPreview(name, args) {
-  const tool = TOOLS[name];
-  if (!tool) return null;
+  const resolved = resolveToolName(name);
+  const tool = resolved ? TOOLS[resolved] : null;
+  if (!tool) return [`${name}: unknown tool — this call cannot run`];
   try {
     return await tool.preview(args ?? {});
   } catch (error) {
@@ -276,7 +305,8 @@ export async function buildToolPreview(name, args) {
 
 /** Execute an authorized tool call. Never throws: failures come back as output. */
 export async function executeTool(name, args) {
-  const tool = TOOLS[name];
+  const resolved = resolveToolName(name);
+  const tool = resolved ? TOOLS[resolved] : null;
   if (!tool) return { ok: false, output: `ERROR: unknown tool ${name}` };
   try {
     return await tool.run(args ?? {});

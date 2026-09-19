@@ -59,7 +59,7 @@ export function authorizeTool({ toolName, preview, argsSummary = '' }) {
         neon(glyphs.warn) + ' ' + bold(warn(`${toolName} wants to run`)),
         '',
       ];
-      const previewRows = preview.map((row) => dim(row));
+      const previewRows = (preview ?? []).map((row) => dim(row));
       const argsRow = argsSummary ? [dim(argsSummary), ''] : [];
       const buttons = selected
         ? neon('[ ' + bold(neonSoft('Allow')) + ' ]') + '  ' + dim('[ Deny ]')

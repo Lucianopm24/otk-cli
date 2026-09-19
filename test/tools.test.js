@@ -5,11 +5,22 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import {
+  buildToolPreview,
   executeTool,
   extractToolCalls,
+  firstToolCallIndex,
   maskToolStream,
+  resolveToolName,
   toolDeclarations,
 } from '../src/tools.js';
+
+// Exactly what the backend/model produces in the wild: mixed `<toolcall>` /
+// `<tool_call>` tags, pretty-printed with newlines, and the tool name spelled
+// `runcommand` instead of the declared `run_command`.
+const REAL_SAMPLE =
+  "Voy a revisar los archivos principales del proyecto: " +
+  "<toolcall>runcommand<argkey>command</argkey><argvalue>find . -type f -not -path '/node_modules/' -not\n  -path '/.git/' -not -path '/dist/' -not -path '/build/' | head -50</argvalue></toolcall>" +
+  '<toolcall>runcommand<argkey>command</argkey><argvalue>ls\n  -la</argvalue></tool_call>';
 
 test('extractToolCalls reads the compact wire form', () => {
   const text =
@@ -37,12 +48,47 @@ test('extractToolCalls tolerates pretty-printed tool calls', () => {
   ]);
 });
 
-test('extractToolCalls returns every call and nothing for plain text', () => {
-  const text =
-    '<toolcall>read_file<argkey>path</argkey><argvalue>a.js</argvalue></toolcall>' +
-    '<toolcall>read_file<argkey>path</argkey><argvalue>b.js</argvalue></toolcall>';
-  assert.equal(extractToolCalls(text).length, 2);
+test('extractToolCalls accepts <tool_call> and mixed closing tags', () => {
+  const sample = extractToolCalls(REAL_SAMPLE);
+  assert.equal(sample.length, 2, 'both calls are read, despite the </tool_call> typo');
+  assert.deepEqual(
+    sample.map((call) => call.name),
+    ['runcommand', 'runcommand'],
+  );
+  assert.equal(sample[1].args.command, 'ls\n  -la');
+
+  assert.deepEqual(
+    extractToolCalls('<tool_call>read_file<argkey>path</argkey><argvalue>a.js</argvalue></tool_call>'),
+    [{ name: 'read_file', args: { path: 'a.js' } }],
+  );
+});
+
+test('extractToolCalls returns nothing for plain text', () => {
   assert.deepEqual(extractToolCalls('no tools here'), []);
+});
+
+test('resolveToolName maps loose names onto declared tools', () => {
+  assert.equal(resolveToolName('run_command'), 'run_command');
+  assert.equal(resolveToolName('runcommand'), 'run_command');
+  assert.equal(resolveToolName('RunCommand'), 'run_command');
+  assert.equal(resolveToolName('writefile'), 'write_file');
+  assert.equal(resolveToolName('mystery'), null);
+  assert.equal(resolveToolName('constructor'), null, 'prototype keys are not tools');
+});
+
+test('buildToolPreview always yields rows, even for unknown tools', async () => {
+  const known = await buildToolPreview('runcommand', { command: 'ls -la' });
+  assert.ok(Array.isArray(known) && known.length > 0);
+
+  const unknown = await buildToolPreview('mystery', {});
+  assert.ok(Array.isArray(unknown) && unknown.length > 0);
+  assert.match(unknown.join('\n'), /unknown tool/);
+});
+
+test('firstToolCallIndex locates the opening tag of either spelling', () => {
+  assert.ok(firstToolCallIndex(REAL_SAMPLE) > 0);
+  assert.ok(firstToolCallIndex('<tool_call>x</tool_call>') === 0);
+  assert.equal(firstToolCallIndex('plain prose'), -1);
 });
 
 test('maskToolStream replaces complete blocks and pending ones', () => {
@@ -52,7 +98,11 @@ test('maskToolStream replaces complete blocks and pending ones', () => {
   assert.match(done, /⚙ write_file\(path="a\.txt"\)/);
   assert.ok(!done.includes('<toolcall>'));
 
-  const pending = maskToolStream('<toolcall>\n  read_file\n  <argkey>path</argkey>');
+  const sample = maskToolStream(REAL_SAMPLE);
+  assert.equal((sample.match(/⚙/g) ?? []).length, 2, 'both blocks are masked');
+  assert.ok(!sample.includes('toolcall'));
+
+  const pending = maskToolStream('<tool_call>\n  read_file\n  <argkey>path</argkey>');
   assert.match(pending, /⚙ read_file requesting authorization…/);
 });
 

@@ -28,6 +28,7 @@ import {
   buildToolPreview,
   executeTool,
   extractToolCalls,
+  firstToolCallIndex,
   maskToolStream,
   toolDeclarations,
 } from '../tools.js';
@@ -350,7 +351,8 @@ async function agentTurn(userText, { api, state, prompt }) {
     }
 
     // Text before the first tool call is still worth showing permanently.
-    const preamble = content.slice(0, content.indexOf('<toolcall>')).trim();
+    const callStart = firstToolCallIndex(content);
+    const preamble = (callStart === -1 ? content : content.slice(0, callStart)).trim();
     if (live) {
       live.finish(maskToolStream(preamble));
       blank(1);
