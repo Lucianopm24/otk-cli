@@ -25,7 +25,7 @@ otk-cli
 ## Install
 
 ```bash
-npm install -g .
+npm install -g otk-cli
 otk-cli
 ```
 

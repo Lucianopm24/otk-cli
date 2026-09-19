@@ -17,7 +17,8 @@
   },
   "scripts": {
     "start": "node bin/otk-cli.js",
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "opentokens",
@@ -26,5 +27,14 @@
     "terminal",
     "tui"
   ],
-  "license": "MIT"
+  "author": "Lucianopm24 <hi@luciano.qzz.io>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lucianopm24/otk-cli.git"
+  },
+  "homepage": "https://github.com/Lucianopm24/otk-cli#readme",
+  "bugs": {
+    "url": "https://github.com/Lucianopm24/otk-cli/issues"
+  }
 }
