@@ -12,7 +12,7 @@ import { createLiveMarkdown } from '../ui/live.js';
 import { createSpinner } from '../ui/spinner.js';
 import { selectModel } from '../ui/select.js';
 import { wrapStyled, padEnd, repeat, truncateStyled } from '../util/ansi.js';
-import { bold, dim, faint, glyphs, mint, neon, neonSoft, warn } from '../ui/theme.js';
+import { ascii, bold, borders, dim, faint, glyphs, mint, neon, neonSoft, warn } from '../ui/theme.js';
 import { TokenExpiredError } from '../api.js';
 import { CONFIG_DIR, savePrefs } from '../config.js';
 import {
@@ -24,7 +24,7 @@ import {
   tokensLabel,
 } from '../format.js';
 import { renderMarkdown, renderMarkdownEx } from '../ui/markdown.js';
-import { columns } from '../ui/out.js';
+import { columns, isInteractive } from '../ui/out.js';
 import { authorizeTool } from '../ui/authorize.js';
 import { TranscriptScroller } from '../ui/scroller.js';
 import {
@@ -250,17 +250,18 @@ function printAdCard(ad, { scroller, prompt } = {}) {
   prompt?.erase?.();
   const width = Math.min(56, Math.max(28, columns() - INDENT.length - 2));
   const inner = width - 4;
-  const url = ad.url ? link(ad.url, ad.url) : null;
+  const url = ad.url ? (isInteractive() ? link(ad.url, ad.url) : ad.url) : null;
+  const b = borders.round;
   const body = [
-    faint('📢 AD'),
+    faint(ascii.on ? 'AD' : '📢 AD'),
     bold(truncateStyled(String(ad.name ?? ''), inner)),
     ...(ad.description ? [dim(truncateStyled(String(ad.description), inner))] : []),
-    ...(url ? [neon('→ ') + url] : []),
+    ...(url ? [neon(glyphs.arrow + ' ') + url] : []),
   ];
   const rows = [
-    INDENT + dim('╭' + repeat('─', width - 2) + '╮'),
-    ...body.map((row) => INDENT + dim('│') + ' ' + padEnd(row, inner) + ' ' + dim('│')),
-    INDENT + dim('╰' + repeat('─', width - 2) + '╯'),
+    INDENT + dim(b.tl + repeat(b.h, width - 2) + b.tr),
+    ...body.map((row) => INDENT + dim(b.v) + ' ' + padEnd(row, inner) + ' ' + dim(b.v)),
+    INDENT + dim(b.bl + repeat(b.h, width - 2) + b.br),
   ];
   line('');
   for (const row of rows) lineTracked(scroller, row);
