@@ -44,7 +44,16 @@ export function modelDisplayName(id) {
   }
   const merged = [];
   for (let i = 0; i < tokens.length; i++) {
-    if (i < tokens.length - 1 && /^\d+$/.test(tokens[i]) && /^\d{1,2}$/.test(tokens[i + 1])) {
+    // 'claude-sonnet-4-6' -> 4.6, but never 'gpt-4o-2024-08-06' -> 2024 08.06:
+    // only a short numeric pair that does not continue a numeric run (a date)
+    // is a split major.minor version.
+    const prevIsNumber = i > 0 && /^\d+$/.test(tokens[i - 1]);
+    if (
+      i < tokens.length - 1 &&
+      !prevIsNumber &&
+      /^\d{1,2}$/.test(tokens[i]) &&
+      /^\d{1,2}$/.test(tokens[i + 1])
+    ) {
       merged.push(`${tokens[i]}.${tokens[i + 1]}`);
       i++;
     } else {
