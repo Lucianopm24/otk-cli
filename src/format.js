@@ -42,6 +42,16 @@ export function modelDisplayName(id) {
   if (tokens.length > 1 && PROVIDER_SUFFIXES.has(tokens[tokens.length - 1].toLowerCase())) {
     tokens = tokens.slice(0, -1);
   }
+  const merged = [];
+  for (let i = 0; i < tokens.length; i++) {
+    if (i < tokens.length - 1 && /^\d+$/.test(tokens[i]) && /^\d{1,2}$/.test(tokens[i + 1])) {
+      merged.push(`${tokens[i]}.${tokens[i + 1]}`);
+      i++;
+    } else {
+      merged.push(tokens[i]);
+    }
+  }
+  tokens = merged;
   const pretty = tokens.map((token) => {
     const lower = token.toLowerCase();
     if (BRAND_CASE[lower]) return BRAND_CASE[lower];
