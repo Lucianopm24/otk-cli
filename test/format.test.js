@@ -22,6 +22,9 @@ test('model names are derived from ids and hide internal providers', () => {
   assert.equal(modelDisplayName('stealth/union-alpha'), 'Union Alpha');
   assert.equal(modelDisplayName('glm-4.7-flash-zai'), 'GLM 4.7 Flash');
   assert.equal(modelDisplayName('deepseek-v4.1-flash'), 'DeepSeek v4.1 Flash');
+  assert.equal(modelDisplayName('claude-sonnet-4-6'), 'Claude Sonnet 4.6');
+  assert.equal(modelDisplayName('claude-3-5-sonnet'), 'Claude 3.5 Sonnet');
+  assert.equal(modelDisplayName('gpt-4-0613'), 'GPT 4 0613');
 });
 
 test('prices, usage and summaries reflect the backend flags', () => {
