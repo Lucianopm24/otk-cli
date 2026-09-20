@@ -209,7 +209,7 @@ async function runLoginFlow({ api, banner = true }) {
   }
   spinner.stop();
 
-  const opened = process.env.OTK_NO_BROWSER === '1' ? false : openBrowser(session.loginUrl);
+  const opened = process.env.OTK_NO_BROWSER === '1' ? false : await openBrowser(session.loginUrl);
   for (const row of renderCodeScreen({ ...session, opened })) line(row);
 
   const watcher = { cancelled: false };
