@@ -1,11 +1,12 @@
 /**
  * Best-effort browser opener. The CLI never *requires* it: the login URL is
  * always printed so the user can click or copy it.
+ * Strategies are tried sequentially until one successfully spawns.
  */
 
 import { spawn } from 'node:child_process';
 
-export function openBrowser(url, options = {}) {
+export async function openBrowser(url, options = {}) {
   const platform = options.platform || process.platform;
   const env = options.env || process.env;
   const spawnImpl = options.spawnImpl || spawn;
@@ -25,10 +26,29 @@ export function openBrowser(url, options = {}) {
 
   for (const [command, args] of attempts) {
     try {
-      const child = spawnImpl(command, args, { stdio: 'ignore', detached: true });
-      child?.on?.('error', () => {});
-      child?.unref?.();
-      return true;
+      const spawned = await new Promise((resolve) => {
+        let child;
+        try {
+          child = spawnImpl(command, args, { stdio: 'ignore', detached: true });
+        } catch {
+          resolve(false);
+          return;
+        }
+        if (!child || typeof child.once !== 'function') {
+          // nothing to listen on (unusual spawn implementation): assume it worked
+          child?.unref?.();
+          resolve(true);
+          return;
+        }
+        child.once('spawn', () => {
+          child.unref?.();
+          resolve(true);
+        });
+        child.once('error', () => {
+          resolve(false);
+        });
+      });
+      if (spawned) return true;
     } catch {
       /* try the next strategy */
     }
