@@ -25,6 +25,8 @@ test('model names are derived from ids and hide internal providers', () => {
   assert.equal(modelDisplayName('claude-sonnet-4-6'), 'Claude Sonnet 4.6');
   assert.equal(modelDisplayName('claude-3-5-sonnet'), 'Claude 3.5 Sonnet');
   assert.equal(modelDisplayName('gpt-4-0613'), 'GPT 4 0613');
+  assert.equal(modelDisplayName('gpt-4o-2024-08-06'), 'GPT 4o 2024 08 06');
+  assert.equal(modelDisplayName('claude-opus-4-1-20250805'), 'Claude Opus 4.1 20250805');
 });
 
 test('prices, usage and summaries reflect the backend flags', () => {
