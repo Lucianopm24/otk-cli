@@ -238,7 +238,7 @@ export function inline(text) {
 
 function renderCodeBlock(block, ctx) {
   const charset = borders.round;
-  const boxWidth = Math.max(24, Math.min(ctx.available, 78));
+  const boxWidth = Math.max(24, ctx.available);
   const inner = boxWidth - 2;
   const tag = block.lang ? neonSoft(block.lang.toLowerCase()) : '';
   const heading = tag

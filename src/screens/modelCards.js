@@ -18,7 +18,9 @@ import {
 } from '../format.js';
 
 export function cardWidth(extra = 0) {
-  return Math.max(34, Math.min(columns() - 6 - extra, 68));
+  // Full terminal width minus the chat indent (2) and a small margin, so
+  // cards stretch edge to edge and notes/warnings are never truncated.
+  return Math.max(34, (columns() || 80) - 6 - extra);
 }
 
 function labelValue(label, value, inner) {
@@ -103,7 +105,7 @@ export function modelCompactRow(model, options = {}) {
 /** The persistent two-line card shown in the chat header. */
 export function chatModelCard(model, options = {}) {
   const { indent = '  ', width = null, footer = null } = options;
-  const w = width ?? Math.min(cardWidth(), 62);
+  const w = width ?? cardWidth();
   const name = modelDisplayName(model.id);
   const rows = [
     neon(glyphs.bullet) + '  ' + bold(neonSoft(name)),
@@ -114,7 +116,7 @@ export function chatModelCard(model, options = {}) {
 
 export function modelWarningLines(model, indent = '  ') {
   if (!model?.warning) return [];
-  const inner = Math.min(cardWidth() - 4, 66);
+  const inner = cardWidth() - 4;
   return prefixedLines(warn(glyphs.warn), model.warning, inner, warn).map(
     (line) => indent + line,
   );

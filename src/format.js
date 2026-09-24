@@ -187,10 +187,14 @@ export function sessionsLabel(account) {
   }
   const remaining = Number(sessions.remaining) || 0;
   const bonus = Number(sessions.bonusSessions) || 0;
-  if (remaining === 0 && bonus > 0) return `no daily sessions left — ${bonus} bonus available`;
-  if (remaining === 0) return 'no sessions left today';
-  const base = `${remaining} session${remaining === 1 ? '' : 's'} remaining`;
-  return bonus > 0 ? `${base} — ${bonus} bonus` : base;
+  // totalAvailable (daily + bonus) is the authoritative number the user can
+  // still spend; fall back to the sum when the backend omits it.
+  const total = Number.isFinite(Number(sessions.totalAvailable))
+    ? Number(sessions.totalAvailable)
+    : remaining + bonus;
+  if (total === 0) return 'no sessions left today';
+  const base = `${total} session${total === 1 ? '' : 's'} available`;
+  return bonus > 0 ? `${base} (${remaining} daily + ${bonus} bonus)` : base;
 }
 
 /** `luciano.romero@mail.com` -> `Luciano` */

@@ -19,12 +19,13 @@ import { APP_NAME, ASSISTANT_NAME, VERSION, WEB_BASE_URL } from '../version.js';
 
 export const INDENT = '  ';
 
-function panelWidth(max = 62) {
-  return Math.max(34, Math.min(columns() - 6, max));
+function panelWidth() {
+  // Full terminal width (minus the chat indent) so nothing is ever cut off.
+  return Math.max(34, (columns() || 80) - INDENT.length);
 }
 
 function panel(title, content, options = {}) {
-  const width = options.width ?? panelWidth(options.max ?? 62);
+  const width = options.width ?? panelWidth();
   const rows = [''];
   if (title) rows.push(INDENT + neon(glyphs.diamond) + ' ' + bold(title), '');
   rows.push(...box(content, { width, indent: INDENT, footer: options.footer }));
@@ -39,33 +40,36 @@ function field(label, value, inner) {
 }
 
 export function helpPanel() {
+  const inner = panelWidth() - 4;
   const rows = [
-    field('/help', 'Show this overview', 52),
-    field('/models', 'Browse every available model', 52),
-    field('/model', 'Switch the model in use', 52),
-    field('/account', 'Account, credits and sessions', 52),
-    field('/credits', 'Check your credit balance', 52),
-    field('/clear', 'Clear this conversation', 52),
-    field('/login', 'Sign in again', 52),
-    field('/version', 'CLI version', 52),
-    field('/exit', 'Leave OTK CLI', 52),
+    field('/help', 'Show this overview', inner),
+    field('/models', 'Browse every available model', inner),
+    field('/model', 'Switch the model in use', inner),
+    field('/account', 'Account, credits and sessions', inner),
+    field('/credits', 'Check your credit balance', inner),
+    field('/clear', 'Clear this conversation', inner),
+    field('/history', 'Saved conversations (open/delete/clear)', inner),
+    field('/login', 'Sign in again', inner),
+    field('/version', 'CLI version', inner),
+    field('/exit', 'Leave OTK CLI', inner),
   ];
-  return panel('Commands', rows, { max: 60 });
+  return panel('Commands', rows);
 }
 
 export function versionPanel() {
+  const inner = panelWidth() - 4;
   const rows = [
-    field('CLI', `${APP_NAME} v${VERSION}`, 52),
-    field('Runtime', `Node ${process.version.replace(/^v/, '')}`, 52),
-    field('Terminal', `${columns()} × ${process.stdout.rows || 24}`, 52),
+    field('CLI', `${APP_NAME} v${VERSION}`, inner),
+    field('Runtime', `Node ${process.version.replace(/^v/, '')}`, inner),
+    field('Terminal', `${columns()} × ${process.stdout.rows || 24}`, inner),
     '',
     dim(`Official OpenTokens client · assistant: ${ASSISTANT_NAME}`),
   ];
-  return panel('About', rows, { max: 58 });
+  return panel('About', rows);
 }
 
 export function accountPanel(account, options = {}) {
-  const inner = panelWidth(options.max ?? 58) - 4;
+  const inner = panelWidth() - 4;
   const email = account?.email || options.email || null;
   const name = email ? displayNameFromEmail(email) : 'there';
   const balance = options.balance ?? account?.balanceCredits ?? 0;
@@ -99,11 +103,11 @@ export function accountPanel(account, options = {}) {
     }
   }
   if (account?.createdAt) rows.push(field('Member', dim(dateLabel(account.createdAt)), inner));
-  return panel('Account', rows, { max: 58 });
+  return panel('Account', rows);
 }
 
 export function creditsPanel(credits, options = {}) {
-  const width = panelWidth(48);
+  const width = panelWidth();
   const inner = width - 4;
   // Accept either the full payload or a bare number.
   const balance = typeof credits === 'object' && credits !== null ? credits.balance : credits;
@@ -128,7 +132,6 @@ export function creditsPanel(credits, options = {}) {
   }
   rows.push('');
   return panel('Credits', rows, {
-    max: 48,
     footer: `manage at ${WEB_BASE_URL.replace(/^https?:\/\//, '')}`,
   });
 }
@@ -194,7 +197,7 @@ function hintsFor(error, context = {}) {
 
 /** Unified error card: ✕ message plus short, actionable hints. */
 export function errorPanel(error, context = {}) {
-  const width = panelWidth(66);
+  const width = panelWidth();
   const inner = width - 4;
   const message = String(error?.message || 'Something went wrong.');
   const hints = context.hints ?? hintsFor(error, context);

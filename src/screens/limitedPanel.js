@@ -8,12 +8,14 @@ import { columns } from '../ui/out.js';
 import { box } from '../ui/box.js';
 import { bold, dim, faint, glyphs, mint, neon, warn } from '../ui/theme.js';
 import { durationLabel, modelDisplayName } from '../format.js';
+import { truncateStyled, visibleWidth } from '../util/ansi.js';
 import { limitedRemaining } from '../util/limitedSession.js';
 
 const INDENT = '  ';
 
-function panelWidth(max = 58) {
-  return Math.max(34, Math.min(columns() - 6, max));
+function panelWidth() {
+  // Full terminal width (minus the chat indent) so nothing is ever cut off.
+  return Math.max(34, (columns() || 80) - INDENT.length);
 }
 
 export function limitedTimePanel(state) {
@@ -54,5 +56,7 @@ export function limitedTimePanel(state) {
 
 function field(label, value, inner) {
   const prefix = dim(label + ':');
-  return prefix + ' ' + value.slice(0, Math.max(4, inner - prefix.length - 1));
+  // stripAnsi-safe room: visibleWidth accounts for colour codes.
+  const room = Math.max(4, inner - visibleWidth(prefix) - 1);
+  return prefix + ' ' + truncateStyled(value, room);
 }

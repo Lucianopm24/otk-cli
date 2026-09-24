@@ -50,12 +50,83 @@ import { runSetup } from './setup.js';
 import { APP_NAME, ASSISTANT_NAME } from '../version.js';
 import { anchorLimitedSession, limitedRemaining } from '../util/limitedSession.js';
 import { limitedTimePanel } from './limitedPanel.js';
+import {
+  deleteAllConversations,
+  deleteConversation,
+  listConversations,
+  loadConversation,
+  saveConversation,
+} from '../history.js';
+import { conversationPanel, historyDeleted, historyPanel } from './historyPanel.js';
 
 const PAINT_INTERVAL_MS = 55;
 const HISTORY_LIMIT = 40;
 
 function print(rows) {
   for (const row of rows) line(row);
+}
+
+/**
+ * Persist the conversation locally (best effort — history must never break
+ * the chat). Called after every completed exchange.
+ */
+function persistHistory(state) {
+  if (state.history.length === 0) return;
+  try {
+    const saved = saveConversation({
+      id: state.conversationId ?? null,
+      model: state.model?.id ?? null,
+      messages: state.history,
+      createdAt: state.conversationCreatedAt ?? null,
+    });
+    state.conversationId = saved.id;
+    state.conversationCreatedAt = saved.createdAt;
+  } catch {
+    /* cosmetic only */
+  }
+}
+
+/** `/history` — list, reopen, delete or clear saved conversations. */
+async function showHistory({ state }, subAction, arg) {
+  const conversations = listConversations();
+  const sub = String(subAction ?? '').trim().toLowerCase();
+
+  if (sub === 'clear') {
+    print(historyDeleted(deleteAllConversations()));
+    return 'ok';
+  }
+
+  if (sub === 'open' || sub === 'delete') {
+    const index = Number.parseInt(arg, 10);
+    if (!conversations.length) {
+      print(historyPanel(conversations));
+      return 'ok';
+    }
+    if (!Number.isInteger(index) || index < 1 || index > conversations.length) {
+      print([
+        '',
+        INDENT + warn(glyphs.warn) + ' ' + dim(`Use a number between 1 and ${conversations.length} — see /history.`),
+        '',
+      ]);
+      return 'ok';
+    }
+    const target = conversations[index - 1];
+    if (sub === 'delete') {
+      deleteConversation(target.id);
+      print(historyDeleted(1));
+      return 'ok';
+    }
+    const conversation = loadConversation(target.id);
+    if (!conversation) {
+      print(historyDeleted(0));
+      return 'ok';
+    }
+    print(conversationPanel(conversation));
+    return 'ok';
+  }
+
+  print(historyPanel(conversations));
+  return 'ok';
 }
 
 /** `line()` + journal into the scrollback transcript. */
@@ -140,10 +211,21 @@ export function accountSummary(state) {
   const sessions = state.account?.sessions;
   if (sessions) {
     const active = sessions.activeNow && Number(sessions.msRemaining) > 0;
-    const label = active
-      ? `session ${durationLabel(sessions.msRemaining)} left`
-      : `${Number(sessions.remaining) || 0} session${Number(sessions.remaining) === 1 ? '' : 's'} remaining`;
-    parts.push(faint(glyphs.clock + ' ' + label));
+    if (active) {
+      parts.push(faint(glyphs.clock + ` session ${durationLabel(sessions.msRemaining)} left`));
+    } else {
+      // Bonus sessions count too: totalAvailable covers daily + bonus.
+      const daily = Number(sessions.remaining) || 0;
+      const bonus = Number(sessions.bonusSessions) || 0;
+      const total = Number.isFinite(Number(sessions.totalAvailable))
+        ? Number(sessions.totalAvailable)
+        : daily + bonus;
+      const label =
+        total === 0
+          ? 'no sessions left today'
+          : `${total} session${total === 1 ? '' : 's'} available${bonus > 0 ? ` (${daily} daily + ${bonus} bonus)` : ''}`;
+      parts.push(faint(glyphs.clock + ' ' + label));
+    }
   }
   return parts.join('   ');
 }
@@ -250,15 +332,18 @@ export function printFarewell(state) {
 function printAdCard(ad, { scroller, prompt } = {}) {
   if (!ad) return;
   prompt?.erase?.();
-  const width = Math.min(56, Math.max(28, columns() - INDENT.length - 2));
+  // Full terminal width so long names/descriptions/URLs are wrapped, never
+  // cut off. The frame itself accounts for the chat indent + borders.
+  const width = Math.max(28, (columns() || 80) - INDENT.length);
   const inner = width - 4;
   const url = ad.url ? (isInteractive() ? link(ad.url, ad.url) : ad.url) : null;
   const b = borders.round;
+  // Wrap every text field instead of truncating it.
   const body = [
     faint(ascii.on ? 'AD' : '📢 AD'),
-    bold(truncateStyled(String(ad.name ?? ''), inner)),
-    ...(ad.description ? [dim(truncateStyled(String(ad.description), inner))] : []),
-    ...(url ? [neon(glyphs.arrow + ' ') + url] : []),
+    ...wrapStyled(bold(String(ad.name ?? '')), inner),
+    ...(ad.description ? wrapStyled(dim(String(ad.description)), inner) : []),
+    ...(url ? wrapStyled(neon(glyphs.arrow + ' ') + url, inner) : []),
   ];
   const rows = [
     INDENT + dim(b.tl + repeat(b.h, width - 2) + b.tr),
@@ -410,6 +495,7 @@ async function agentTurn(userText, { api, state, prompt }) {
       blank(1);
       printUsageLine(state, usage);
       state.history.push({ role: 'assistant', content });
+      persistHistory(state);
       await afterReply(state, api, usage);
       // OpenAds: fire-and-forget after the reply, never blocking or re-rendering
       api
@@ -565,6 +651,9 @@ async function showCredits({ api, state }) {
 function clearConversation({ state }) {
   clearScreen();
   state.history = [];
+  // start a fresh saved conversation after a /clear
+  state.conversationId = null;
+  state.conversationCreatedAt = null;
   renderChatIntro(state);
   line(INDENT + dim('Conversation cleared.'));
   blank(1);
@@ -618,6 +707,8 @@ async function handleCommand(raw, ctx) {
       case 'clear':
         clearConversation(ctx);
         return 'ok';
+      case 'history':
+        return await showHistory(ctx, rest[0] ?? '', rest.slice(1).join(' '));
       case 'login':
       case 'signin':
         return await relogin(ctx);

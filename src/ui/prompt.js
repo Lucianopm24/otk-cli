@@ -32,7 +32,7 @@ const GLYPH = '› ';
 const MAX_ROWS = 4;
 
 function boxWidth() {
-  return Math.max(28, Math.min(columns() - INDENT.length - 2, 78));
+  return Math.max(28, (columns() || 80) - INDENT.length - 2);
 }
 
 export class BoxedPrompt {

@@ -50,6 +50,8 @@ function startMock(options = {}) {
     remaining: activeSession && sends > 0 ? 3 : 4,
     perDay: 6,
     usedToday: activeSession && sends > 0 ? 1 : 0,
+    bonusSessions: 0,
+    totalAvailable: activeSession && sends > 0 ? 3 : 4,
     unlocked: true,
     activeNow: activeSession && sends > 0,
     msRemaining: activeSession && sends > 0 ? 3_540_000 : 0,
@@ -210,7 +212,7 @@ test('a signed-in session chats, switches models and handles commands', async (t
   // account state shown sparingly
   assert.ok(stdout.includes('Luciano'));
   assert.ok(stdout.includes('12.48 C'));
-  assert.ok(stdout.includes('4 sessions remaining'));
+  assert.ok(stdout.includes('4 sessions available'));
   assert.ok(stdout.includes('luciano@example.com'));
 
   // /models reuses the same cards, including warnings and notes
@@ -254,7 +256,7 @@ test('a free-session model reports the session and its countdown', async (t) => 
   assert.ok(stdout.includes('Daily sessions'));
   assert.ok(stdout.includes('Free session started'));
   assert.ok(stdout.includes('59:00 remaining'));
-  assert.ok(stdout.includes('4 sessions remaining'));    assert.ok(stdout.includes('3/6 today'));
+  assert.ok(stdout.includes('4 sessions available'));    assert.ok(stdout.includes('3/6 today'));
   const send = mock.requests.find((request) => request.url === '/cli/chat/send');
   assert.equal(send.body.model, 'stealth/union-alpha');
   // session models never report credit spend in the meta line

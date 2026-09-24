@@ -48,7 +48,7 @@ export function authorizeTool({ toolName, preview, argsSummary = '' }) {
     let selected = true; // default: Allow
     let done = false;
 
-    const width = Math.max(48, Math.min(80, (process.stdout.columns || 80) - 6));
+    const width = Math.max(48, (process.stdout.columns || 80) - 6);
     const bodyWidth = width - 6;
 
     // The popup always occupies a FIXED number of rows (padded with blanks
