@@ -11,7 +11,7 @@
   ╚═════╝    ╚═╝   ╚═╝  ╚═╝
 
              O P E N T O K E N S
-                CLI v1.0.1
+                CLI v1.0.2
 ```
 
 Everything happens **inside** the interactive session: signing in, picking a

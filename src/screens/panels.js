@@ -80,10 +80,13 @@ export function accountPanel(account, options = {}) {
         ? mint(`${glyphs.timer} ${durationLabel(sessions.msRemaining)} left`)
         : dim('none active');
     rows.push(field('Session', active, inner));
+    const remaining = Number(sessions.remaining) || 0;
+    const perDay = Number(sessions.perDay) || 0;
+    const bonus = Number(sessions.bonusSessions) || 0;
     rows.push(
       field(
         'Sessions',
-        `${Number(sessions.remaining) || 0} of ${Number(sessions.perDay) || 0} left today`,
+        `${remaining}/${perDay} today${bonus > 0 ? ` — ${bonus} bonus` : ''}`,
         inner,
       ),
     );
@@ -99,15 +102,31 @@ export function accountPanel(account, options = {}) {
   return panel('Account', rows, { max: 58 });
 }
 
-export function creditsPanel(balance, options = {}) {
+export function creditsPanel(credits, options = {}) {
   const width = panelWidth(48);
   const inner = width - 4;
+  // Accept either the full payload or a bare number.
+  const balance = typeof credits === 'object' && credits !== null ? credits.balance : credits;
+  const daily = typeof credits === 'object' && credits !== null ? credits.dailyCredits : 0;
+  const total =
+    typeof credits === 'object' && credits !== null
+      ? credits.totalSpendable
+      : Number(credits) || 0;
   const rows = [
     '',
-    centerStyled(mint(bold(creditsLabel(balance))), inner),
+    centerStyled(mint(bold(creditsLabel(total))), inner),
     centerStyled(dim('ready to spend'), inner),
-    '',
   ];
+  if (daily > 0) {
+    rows.push('');
+    rows.push(
+      centerStyled(
+        dim(`${creditsLabel(daily)} are today's free credits · ${creditsLabel(balance)} balance`),
+        inner,
+      ),
+    );
+  }
+  rows.push('');
   return panel('Credits', rows, {
     max: 48,
     footer: `manage at ${WEB_BASE_URL.replace(/^https?:\/\//, '')}`,

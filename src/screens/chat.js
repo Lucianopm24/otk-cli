@@ -201,7 +201,9 @@ function printUsageLine(state, usage) {
 async function refreshBalanceAfterStream(state, api) {
   if (!state.model || state.model.usesSessions || state.model.free) return;
   try {
-    state.balance = await api.credits(state.auth.token);
+    const credits = await api.credits(state.auth.token);
+    state.balance = credits.balance ?? credits;
+    state.dailyCredits = credits.dailyCredits ?? 0;
   } catch {
     /* cosmetic only: never fail the turn over a balance refresh */
   }
@@ -553,8 +555,10 @@ async function showAccount({ api, state }) {
 }
 
 async function showCredits({ api, state }) {
-  state.balance = await api.credits(state.auth.token);
-  print(creditsPanel(state.balance));
+  const credits = await api.credits(state.auth.token);
+  state.balance = credits.balance ?? credits;
+  state.dailyCredits = credits.dailyCredits ?? 0;
+  print(creditsPanel(credits));
   return 'ok';
 }
 

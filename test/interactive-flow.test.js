@@ -69,11 +69,20 @@ function fakeApi(overrides = {}) {
         email: 'luciano@example.com',
         balanceCredits: 12.4812,
         createdAt: 1_735_000_000_000,
-        sessions: { remaining: 4, perDay: 6, usedToday: 1, unlocked: true, activeNow: false, msRemaining: 0 },
+        sessions: {
+          remaining: 4,
+          perDay: 6,
+          usedToday: 1,
+          unlocked: true,
+          activeNow: false,
+          msRemaining: 0,
+          bonusSessions: 2,
+          totalAvailable: 6,
+        },
       };
     },
     async credits() {
-      return 12.4812;
+      return { balance: 12.4812, dailyCredits: 0.15, totalSpendable: 12.6312 };
     },
     async sign() {
       calls.push({ kind: 'sign' });
@@ -128,7 +137,7 @@ test('the interactive session runs from banner to farewell', async () => {
     assert.equal(code, 0);
 
     const text = terminal.text();
-    assert.ok(text.includes('OTK CLI v1.0.1'));
+    assert.ok(text.includes('OTK CLI v1.0.2'));
     assert.ok(text.includes('│ hi there'));
     assert.ok(text.includes('Toeky:'));
     assert.ok(text.includes('Hello from the mock'));

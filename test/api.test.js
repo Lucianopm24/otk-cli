@@ -124,6 +124,47 @@ test('limitedModels() normalises the pool payload and the active session', async
   assert.equal(models[1].poolLimit, 0);
 });
 
+test('limitedModels() understands the new poolSize/used/remaining payload', async () => {
+  const api = apiWith(() =>
+    jsonResponse({
+      ok: true,
+      limited: [
+        {
+          model: 'gemini-3.8-flash-tiered',
+          active: true,
+          poolSize: 20,
+          used: 7,
+          remaining: 13,
+          myActiveSession: { startedAt: 0, expiresAt: 3_600_000, msRemaining: 3_500_000 },
+        },
+      ],
+    }),
+  );
+  const models = await api.limitedModels('ot_test');
+  assert.equal(models.length, 1);
+  assert.equal(models[0].limitedTime, true);
+  assert.equal(models[0].poolLimit, 20);
+  assert.equal(models[0].poolUsed, 7);
+  assert.equal(models[0].poolRemaining, 13);
+  assert.equal(models[0].yourActiveSession.msRemaining, 3_500_000);
+});
+
+test('credits() returns balance, dailyCredits and totalSpendable', async () => {
+  const api = apiWith(() =>
+    jsonResponse({ ok: true, balanceCredits: 1.23456, dailyCredits: 0.15, totalSpendable: 1.38456 }),
+  );
+  const credits = await api.credits('ot_test');
+  assert.equal(credits.balance, 1.23456);
+  assert.equal(credits.dailyCredits, 0.15);
+  assert.equal(credits.totalSpendable, 1.38456);
+});
+
+test('credits() falls back to computing totalSpendable when absent', async () => {
+  const api = apiWith(() => jsonResponse({ ok: true, balanceCredits: 2, dailyCredits: 0.15 }));
+  const credits = await api.credits('ot_test');
+  assert.equal(credits.totalSpendable, 2.15);
+});
+
 test('limitedBonus() returns null without a session and normalises with one', async () => {
   const none = apiWith((url) => {
     assert.equal(url, 'https://example.test/cli/models/bonus');

@@ -172,26 +172,32 @@ export class OtkApi {
    */
   async limitedModels(token) {
     const data = await this.#request('/cli/models/limited', { token });
-    const models = Array.isArray(data.models) ? data.models : [];
+    const models = Array.isArray(data.limited) ? data.limited : Array.isArray(data.models) ? data.models : [];
     return models
       .filter((model) => model && typeof model.model === 'string')
       .map((model) => ({
         model: model.model,
-        limitedTime: Boolean(model.limitedTime),
+        limitedTime: model.active !== undefined ? Boolean(model.active) : Boolean(model.limitedTime),
         free: Boolean(model.free),
         usesSessions: Boolean(model.usesSessions),
-        poolLimit: Number(model.poolLimit) || 0,
-        poolUsed: Number(model.poolUsed) || 0,
-        poolRemaining: Number(model.poolRemaining) || 0,
+        // Backend names: poolSize/used/remaining (older snapshots used
+        // poolLimit/poolUsed/poolRemaining) — normalised to pool* fields.
+        poolLimit: Number(model.poolSize ?? model.poolLimit) || 0,
+        poolUsed: Number(model.used ?? model.poolUsed) || 0,
+        poolRemaining: Number(model.remaining ?? model.poolRemaining) || 0,
         poolSharedAcrossAllUsers: model.poolSharedAcrossAllUsers !== false,
         poolResets: Boolean(model.poolResets),
         yourActiveSession:
-          model.yourActiveSession && Number(model.yourActiveSession.expiresAt) > 0
-            ? {
-                startedAt: Number(model.yourActiveSession.startedAt) || null,
-                expiresAt: Number(model.yourActiveSession.expiresAt),
-                msRemaining: Number(model.yourActiveSession.msRemaining) || 0,
-              }
+          (model.myActiveSession ?? model.yourActiveSession) &&
+          Number((model.myActiveSession ?? model.yourActiveSession).expiresAt) > 0
+            ? (() => {
+                const session = model.myActiveSession ?? model.yourActiveSession;
+                return {
+                  startedAt: Number(session.startedAt) || null,
+                  expiresAt: Number(session.expiresAt),
+                  msRemaining: Number(session.msRemaining) || 0,
+                };
+              })()
             : null,
       }));
   }
@@ -219,9 +225,21 @@ export class OtkApi {
     return data.account ?? null;
   }
 
+  /**
+   * Full credits payload: `balanceCredits` (paid balance), `dailyCredits`
+   * (free daily credits, spent before the balance, non-cumulative) and
+   * `totalSpendable`. Kept backwards compatible: callers that only need a
+   * number still get one from `.balance`.
+   */
   async credits(token) {
     const data = await this.#request('/cli/account/credits', { token });
-    return Number(data.balanceCredits) || 0;
+    return {
+      balance: Number(data.balanceCredits) || 0,
+      dailyCredits: Number(data.dailyCredits) || 0,
+      totalSpendable: Number.isFinite(Number(data.totalSpendable))
+        ? Number(data.totalSpendable)
+        : (Number(data.balanceCredits) || 0) + (Number(data.dailyCredits) || 0),
+    };
   }
 
   async send(token, { model, messages, maxTokens = 16_384, signal = null }) {
@@ -278,7 +296,8 @@ export class OtkApi {
   /** Exact post-stream spend, since streaming responses carry no usage. */
   async creditsAfterStream(token) {
     try {
-      return Number(await this.credits(token));
+      const credits = await this.credits(token);
+      return Number(credits.balance ?? credits);
     } catch {
       return null;
     }

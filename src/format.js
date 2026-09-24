@@ -186,8 +186,11 @@ export function sessionsLabel(account) {
     return `session ${durationLabel(sessions.msRemaining)} left`;
   }
   const remaining = Number(sessions.remaining) || 0;
+  const bonus = Number(sessions.bonusSessions) || 0;
+  if (remaining === 0 && bonus > 0) return `no daily sessions left — ${bonus} bonus available`;
   if (remaining === 0) return 'no sessions left today';
-  return `${remaining} session${remaining === 1 ? '' : 's'} remaining`;
+  const base = `${remaining} session${remaining === 1 ? '' : 's'} remaining`;
+  return bonus > 0 ? `${base} — ${bonus} bonus` : base;
 }
 
 /** `luciano.romero@mail.com` -> `Luciano` */
