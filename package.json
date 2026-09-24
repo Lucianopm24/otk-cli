@@ -17,7 +17,7 @@
   },
   "scripts": {
     "start": "node bin/otk-cli.js",
-    "test": "node --test test/",
+    "test": "node --test \"test/**/*.test.js\"",
     "prepublishOnly": "npm test"
   },
   "keywords": [
