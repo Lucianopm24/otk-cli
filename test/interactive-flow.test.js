@@ -137,7 +137,7 @@ test('the interactive session runs from banner to farewell', async () => {
     assert.equal(code, 0);
 
     const text = terminal.text();
-    assert.ok(text.includes('OTK CLI v1.0.3'));
+    assert.ok(text.includes('OTK CLI v1.0.4'));
     assert.ok(text.includes('│ hi there'));
     assert.ok(text.includes('Toeky:'));
     assert.ok(text.includes('Hello from the mock'));

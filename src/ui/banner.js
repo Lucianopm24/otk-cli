@@ -5,7 +5,7 @@
 
 import { center, padEnd, repeat, visibleWidth } from '../util/ansi.js';
 import { APP_NAME, PRODUCT_NAME, VERSION } from '../version.js';
-import { ascii, bold, borders, dim, neon, neonDeep, neonSoft } from './theme.js';
+import { ascii, bold, borders, dim, neon, neonDeep, neonSoft, warn } from './theme.js';
 
 const ART = [
   '  ██████╗ ████████╗██╗  ██╗',
@@ -28,14 +28,18 @@ function lockupLine() {
   return `${dim('Version')} ${neonSoft(VERSION)}`;
 }
 
-function compactBanner(columns) {
+function betaTag() {
+  return warn(' BETA');
+}
+
+function compactBanner(columns, { beta = false } = {}) {
   const charset = borders.round;
   const body = ascii.on
-    ? [wordmark(), dim(`${APP_NAME} v${VERSION}`)]
+    ? [wordmark() + (beta ? betaTag() : ''), dim(`${APP_NAME} v${VERSION}`)]
     : [
         ...ART.map((row) => row.trimEnd()),
         '',
-        wordmark(),
+        wordmark() + (beta ? betaTag() : ''),
         dim(`${APP_NAME} v${VERSION}`),
       ];
   const natural = Math.max(...body.map((row) => visibleWidth(row)));
@@ -59,7 +63,7 @@ function compactBanner(columns) {
   return ['', ...rows, ''];
 }
 
-function fullBanner(columns) {
+function fullBanner(columns, { beta = false } = {}) {
   const rows = [];
   rows.push('');
   const indent = ' '.repeat(Math.max(0, Math.floor((columns - ART_WIDTH) / 2)));
@@ -68,7 +72,7 @@ function fullBanner(columns) {
     rows.push(indent + paint(row));
   });
   rows.push('');
-  rows.push(center(bold(neon(wordmark())), columns));
+  rows.push(center(bold(neon(wordmark())) + (beta ? betaTag() : ''), columns));
   rows.push(center(dim(`${APP_NAME} v${VERSION}`), columns));
   rows.push('');
   return rows;
@@ -79,6 +83,7 @@ function fullBanner(columns) {
  * @param {number} [options.columns]  terminal width
  * @param {number} [options.rows]     terminal height
  * @param {boolean} [options.compact] force the compact lockup
+ * @param {boolean} [options.beta]    show the BETA tag next to the wordmark
  */
 export function renderBanner(options = {}) {
   const columns = options.columns || process.stdout.columns || 80;
@@ -86,8 +91,8 @@ export function renderBanner(options = {}) {
   const wideEnough = columns >= ART_WIDTH + 8;
   const tallEnough = rows >= ART_HEIGHT + 12;
   if (ascii.on || options.compact || !wideEnough || !tallEnough) {
-    return compactBanner(columns);
+    return compactBanner(columns, { beta: options.beta });
   }
-  return fullBanner(columns);
+  return fullBanner(columns, { beta: options.beta });
 }
 

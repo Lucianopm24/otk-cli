@@ -25,8 +25,122 @@ import { printFarewell, runChat, syncSession } from './screens/chat.js';
 import { createApi, TokenExpiredError, ApiError } from './api.js';
 import { anchorLimitedSession, applyLimitedModels } from './util/limitedSession.js';
 import { clearAuth, loadAuth, loadPrefs, savePrefs, tokenExpired } from './config.js';
-import { bold, dim, faint, glyphs, neon, neonSoft } from './ui/theme.js';
+import { bold, dim, faint, glyphs, neon, neonSoft, warn } from './ui/theme.js';
 import { APP_NAME, ASSISTANT_NAME, VERSION } from './version.js';
+import { classifyVersion, fetchLatestVersion, installVersion } from './update.js';
+import readline from 'node:readline';
+
+const INDENT = '  ';
+
+/**
+ * Ask a yes/no question with raw keypresses (y/n/Enter/Esc). Resolves
+ * `true` only for an affirmative answer.
+ */
+function confirmPrompt(question) {
+  return new Promise((resolve) => {
+    line(INDENT + bold(question) + dim('  [y/N]'));
+    readline.emitKeypressEvents(stdin);
+    if (typeof stdin.setRawMode === 'function') stdin.setRawMode(true);
+    stdin.resume();
+    const onKey = (str, key = {}) => {
+      if (key.ctrl && key.name === 'c') {
+        cleanup();
+        resolve(false);
+        return;
+      }
+      cleanup();
+      const answer = String(str ?? '').toLowerCase();
+      resolve(answer === 'y' || answer === 's' || answer === 'yes' || answer === 'si');
+    };
+    const cleanup = () => {
+      stdin.removeListener('keypress', onKey);
+    };
+    stdin.on('keypress', onKey);
+  });
+}
+
+/**
+ * Version gate: runs once before anything else. Older than the backend's
+ * stable means the user MUST update; newer means they are on a beta build.
+ * A failed check (offline, endpoint missing) never blocks the CLI.
+ */
+async function runVersionGate() {
+  const latest = await fetchLatestVersion();
+  const verdict = classifyVersion(VERSION, latest);
+
+  if (verdict === 'ok') return { proceed: true, beta: false };
+
+  if (verdict === 'update-required') {
+    for (;;) {
+      clearScreen();
+      const rows = [
+        '',
+        INDENT + neon(glyphs.diamond) + ' ' + bold(neonSoft('Update required')),
+        '',
+        INDENT + `Your ${APP_NAME} is v${VERSION}, but the latest version is v${latest}.`,
+        INDENT + dim('You must update before you can continue.'),
+        '',
+        INDENT + dim('Run:') + ' ' + bold('npm i -g opentokens-cli'),
+        '',
+      ];
+      for (const row of rows) line(row);
+      if (await confirmPrompt('Install it now?')) {
+        const ok = await installVersion(null, {
+          onLine: (text) => line(INDENT + faint(text.slice(0, (process.stdout.columns || 80) - 4))),
+        });
+        if (ok) {
+          line('');
+          line(INDENT + neon(glyphs.ok) + ' ' + bold('Updated successfully.'));
+          line(INDENT + dim(`Restarting ${APP_NAME}…`));
+          return { proceed: false, beta: false }; // exit: fresh version takes over
+        }
+        line('');
+        line(INDENT + warn(glyphs.cross) + ' ' + warn('The install failed. Update manually and try again.'));
+      }
+      // Either the user declined or the install failed: offer to retry by
+      // looping (mandatory means mandatory), or let them exit cleanly.
+      line('');
+      if (!(await confirmPrompt('Try again?'))) {
+        line('');
+        line(INDENT + dim('Update with ') + bold('npm i -g opentokens-cli') + dim(' and run otk-cli again.'));
+        return { proceed: false, beta: false };
+      }
+    }
+  }
+
+  // verdict === 'beta': newer than the backend's stable version.
+  for (;;) {
+    clearScreen();
+    const rows = [
+      '',
+      INDENT + warn(glyphs.spark) + ' ' + bold(warn('BETA version')),
+      '',
+      INDENT + `You are running ${APP_NAME} v${VERSION}, newer than the stable v${latest}.`,
+      INDENT + dim('Beta builds may have errors or unfinished features.'),
+      '',
+    ];
+    for (const row of rows) line(row);
+    if (await confirmPrompt('Continue in beta anyway?')) {
+      return { proceed: true, beta: true }; // the caller shows the beta tag
+    }
+    line('');
+    line(INDENT + dim('Installing the stable version…')); 
+    const ok = await installVersion(latest, {
+      onLine: (text) => line(INDENT + faint(text.slice(0, (process.stdout.columns || 80) - 4))),
+    });
+    if (ok) {
+      line(INDENT + neon(glyphs.ok) + ' ' + bold('Stable version installed.'));
+      line(INDENT + dim(`Restarting ${APP_NAME}…`));
+      return { proceed: false, beta: false }; // exit: stable takes over
+    }
+    line('');
+    line(INDENT + warn(glyphs.cross) + ' ' + warn('The install failed.'));
+    if (!(await confirmPrompt('Continue in beta anyway?'))) {
+      return { proceed: false, beta: false };
+    }
+    return { proceed: true, beta: true };
+  }
+}
 
 export function restoreTerminal() {
   showCursor();
@@ -86,7 +200,25 @@ export async function runApp(options = {}) {
     clearScreen();
   }
 
+  // Version gate: mandatory update when older than the backend's stable,
+  // beta notice when newer. `false` means the process must exit (either an
+  // update was just installed, or the user chose not to continue).
+  let isBeta = false;
+  // Skipped when an API client is injected (tests) or the check is disabled.
+  const gateEnabled = isInteractive() && !options.api && process.env.OTK_NO_VERSION_CHECK !== '1';
+  if (gateEnabled) {
+    const gate = await runVersionGate();
+    if (!gate.proceed) {
+      restoreTerminal();
+      return 0;
+    }
+    isBeta = gate.beta;
+  }
+
   let notice = null;
+  if (isBeta) {
+    notice = `Beta build v${VERSION}: you may run into errors. Install the stable with npm i -g opentokens-cli.`;
+  }
   // true when a session expires while chatting: the setup screen then
   // reappears without wiping the conversation off the screen
   let midSession = false;
@@ -162,7 +294,7 @@ export async function runApp(options = {}) {
     // First run: the OTK banner lives on the same screen as the model picker.
     const header = state.model
       ? null
-      : [...renderBanner({}), '  ' + neon(glyphs.diamond) + ' ' + bold(neonSoft(APP_NAME)) + dim(` · ${ASSISTANT_NAME} in your terminal`), ''];
+      : [...renderBanner({ beta: isBeta }), '  ' + neon(glyphs.diamond) + ' ' + bold(neonSoft(APP_NAME)) + (isBeta ? warn(' BETA') : '') + dim(` · ${ASSISTANT_NAME} in your terminal`), ''];
     const chosen = await selectModel({
       api,
       models,
