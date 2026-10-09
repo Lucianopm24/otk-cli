@@ -8,7 +8,7 @@ import readline from 'node:readline';
 import { blank, clearScreen, columns, isInteractive, line, stdin } from '../ui/out.js';
 import { center } from '../util/ansi.js';
 import { box } from '../ui/box.js';
-import { renderBanner } from '../ui/banner.js';
+import { renderBanner, renderShutdownNotice } from '../ui/banner.js';
 import { createSpinner } from '../ui/spinner.js';
 import {
   bold,
@@ -44,7 +44,7 @@ export function renderSetupScreen(notice = null, options = {}) {
   const cols = columns();
   const width = Math.max(40, Math.min(48, cols - 8));
   const inner = width - 4;
-  const rows = [];
+  const rows = [...renderShutdownNotice({ columns: cols, indent: '' })];
   if (options.banner === false) {
     // re-authentication in the middle of a conversation: no full banner
     rows.push('', INDENT + neon(glyphs.diamond) + ' ' + bold(`${APP_NAME} · sign-in required`), '');

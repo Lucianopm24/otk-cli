@@ -15,7 +15,7 @@ import {
   showCursor,
   stdin,
 } from './ui/out.js';
-import { renderBanner } from './ui/banner.js';
+import { renderBanner, renderShutdownNotice } from './ui/banner.js';
 import { createPrompt } from './ui/prompt.js';
 import { createSpinner } from './ui/spinner.js';
 import { selectModel } from './ui/select.js';
@@ -74,7 +74,7 @@ async function runVersionGate() {
     for (;;) {
       clearScreen();
       const rows = [
-        '',
+        ...renderShutdownNotice({ indent: INDENT }),
         INDENT + neon(glyphs.diamond) + ' ' + bold(neonSoft('Update required')),
         '',
         INDENT + `Your ${APP_NAME} is v${VERSION}, but the latest version is v${latest}.`,
@@ -112,7 +112,7 @@ async function runVersionGate() {
   for (;;) {
     clearScreen();
     const rows = [
-      '',
+      ...renderShutdownNotice({ indent: INDENT }),
       INDENT + warn(glyphs.spark) + ' ' + bold(warn('BETA version')),
       '',
       INDENT + `You are running ${APP_NAME} v${VERSION}, newer than the stable v${latest}.`,
@@ -302,6 +302,7 @@ export async function runApp(options = {}) {
       preferredId: remembered,
       title: state.model ? 'Choose a model' : 'Choose a model',
       header,
+      showNotice: true,
     });
     if (!chosen) return finish(state);
     state.model = chosen;

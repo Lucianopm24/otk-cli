@@ -7,6 +7,7 @@
 import readline from 'node:readline';
 import { isInteractive, rows as termRows, stdin, write } from './out.js';
 import { bold, dim, faint, glyphs, neon } from './theme.js';
+import { renderShutdownNotice } from './banner.js';
 import { modelCompactRow, modelDetailCard, cardWidth } from '../screens/modelCards.js';
 
 const INDENT = '  ';
@@ -20,6 +21,7 @@ export function renderSelectorFrame(models, options = {}) {
     indent = INDENT,
     height = termRows(),
     header = null,
+    showNotice = true,
   } = options;
 
   const width = cardWidth();
@@ -41,9 +43,10 @@ export function renderSelectorFrame(models, options = {}) {
         ],
   );
 
+  const noticeBlock = showNotice ? renderShutdownNotice({ indent }) : [];
   const headerBlock = headerRows
-    ? [...headerRows, '', indent + neon(glyphs.diamond) + ' ' + bold(title), '']
-    : [indent + neon(glyphs.diamond) + ' ' + bold(title), ''];
+    ? [...noticeBlock, ...headerRows, '', indent + neon(glyphs.diamond) + ' ' + bold(title), '']
+    : [...noticeBlock, indent + neon(glyphs.diamond) + ' ' + bold(title), ''];
   const footer = [
     '',
     indent +
@@ -108,6 +111,7 @@ export async function selectModel(options) {
     title = 'Choose a model',
     preferredId = null,
     header = null,
+    showNotice = true,
   } = options;
 
   if (!models || models.length === 0) return null;
@@ -137,6 +141,7 @@ export async function selectModel(options) {
       title,
       allowCancel,
       header,
+      showNotice,
     });
     write(frame.join('\n') + '\n');
     return frame.length;

@@ -3,9 +3,27 @@
  * wordmark when the terminal is narrow, and a one-line lockup for panels.
  */
 
-import { center, padEnd, repeat, visibleWidth } from '../util/ansi.js';
+import { center, padEnd, repeat, visibleWidth, wrapStyled } from '../util/ansi.js';
 import { APP_NAME, PRODUCT_NAME, VERSION } from '../version.js';
 import { ascii, bold, borders, dim, neon, neonDeep, neonSoft, warn } from './theme.js';
+
+export const SHUTDOWN_NOTICE =
+  'OpenTokens is shutting down on November 1 of 2026. See more at opentokens.is-so.pro/shutdown';
+
+/** Render the shutdown notice used by every non-chat screen. */
+export function renderShutdownNotice(options = {}) {
+  const columns = options.columns || process.stdout.columns || 80;
+  const indent = options.indent ?? '  ';
+  const width = Math.max(8, columns - indent.length - 2);
+  const rows = wrapStyled(SHUTDOWN_NOTICE, width);
+  return [
+    '',
+    ...rows.map((row, index) =>
+      indent + (index === 0 ? warn('!') + ' ' : '  ') + warn(row),
+    ),
+    '',
+  ];
+}
 
 const ART = [
   '  ██████╗ ████████╗██╗  ██╗',
